@@ -213,8 +213,17 @@ static class Win32Input
         int targetX = Math.Clamp(p.x + dx, vLeft, vLeft + vWidth - 1);
         int targetY = Math.Clamp(p.y + dy, vTop, vTop + vHeight - 1);
 
-        int nx = (int)Math.Round((targetX - vLeft) * 65535.0 / (vWidth - 1));
-        int ny = (int)Math.Round((targetY - vTop) * 65535.0 / (vHeight - 1));
+        // Aim at the CENTRE of the target pixel's normalised band, not its edge.
+        // Windows maps an absolute coordinate n back to a pixel by truncating
+        // (n * size / 65535), so the naive p * 65535 / (size - 1) lands on the
+        // low edge and truncates back to p - 1: a 1px move would resolve to no
+        // move at all and slow dragging would stall. The +0.5 midpoint keeps
+        // the round trip exact, and stays exact whether Windows divides by
+        // 65535 or 65536, since the half-pixel margin swamps that difference.
+        int nx = (int)(((targetX - vLeft) + 0.5) * 65535.0 / vWidth);
+        int ny = (int)(((targetY - vTop) + 0.5) * 65535.0 / vHeight);
+        nx = Math.Clamp(nx, 0, 65535);
+        ny = Math.Clamp(ny, 0, 65535);
 
         var input = new INPUT
         {

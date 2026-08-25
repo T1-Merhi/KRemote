@@ -18,6 +18,11 @@ using System.Windows.Forms;
 // usable delta. Raw Input reports the device's own relative counts, which
 // are immune to clamping, pointer speed and acceleration.
 //
+// Threading note: low-level hook callbacks and WM_INPUT are both delivered
+// on the thread that installed them -- this thread, the one running
+// Application.Run -- so the key/button tracking sets below need no locking.
+// Only the outbound queue crosses threads.
+//
 // Run:  dotnet run <receiver-ip>   (e.g. dotnet run 192.168.1.50)
 
 class Program
@@ -27,6 +32,16 @@ class Program
 
     static NetworkStream? stream;
     static volatile bool capturing = false;
+
+    // What we have told the receiver is currently held down, and what is
+    // physically held down on this laptop while we are NOT capturing.
+    // On every toggle the side that loses control has its held keys and
+    // buttons released, otherwise a modifier held across the toggle stays
+    // stuck down forever on the machine that just went idle.
+    static readonly Dictionary<int, bool> remoteKeys = new(); // vk -> extended
+    static readonly HashSet<string> remoteButtons = new();
+    static readonly Dictionary<int, bool> localKeys = new();  // vk -> extended
+    static readonly HashSet<string> localButtons = new();
 
     // Outbound event queue. The hook and WM_INPUT handlers only enqueue;
     // a background thread does the socket writes. A low-level hook that
@@ -137,6 +152,37 @@ class Program
         }
     }
 
+    // ---------- capture toggle ----------
+
+    static void ToggleCapture()
+    {
+        if (capturing)
+        {
+            // Control returns to this laptop: release what the receiver holds.
+            // Must run while capturing is still true so Post() is still live.
+            foreach (var kv in remoteKeys) Post($"KEY {kv.Key} up{(kv.Value ? " ext" : "")}");
+            remoteKeys.Clear();
+            foreach (var b in remoteButtons) Post($"BTN {b} up");
+            remoteButtons.Clear();
+
+            capturing = false;
+        }
+        else
+        {
+            // Control moves to the receiver: release what this laptop holds.
+            // Must run while capturing is still false, otherwise the mouse and
+            // keyboard hooks swallow our own injected key-up events.
+            foreach (var kv in localKeys) LocalInput.SendKey((ushort)kv.Key, down: false, extended: kv.Value);
+            localKeys.Clear();
+            foreach (var b in localButtons) LocalInput.MouseButton(b, down: false);
+            localButtons.Clear();
+
+            capturing = true;
+        }
+
+        Console.WriteLine(capturing ? "-> Controlling REMOTE laptop" : "-> Controlling THIS laptop");
+    }
+
     // ---------- input capture ----------
 
     static void OnRawMouse(int dx, int dy, ushort buttonFlags, short buttonData)
@@ -145,18 +191,26 @@ class Program
 
         PostMove(dx, dy);
 
-        if ((buttonFlags & RawMouse.RI_MOUSE_LEFT_BUTTON_DOWN) != 0) Post("BTN left down");
-        if ((buttonFlags & RawMouse.RI_MOUSE_LEFT_BUTTON_UP) != 0) Post("BTN left up");
-        if ((buttonFlags & RawMouse.RI_MOUSE_RIGHT_BUTTON_DOWN) != 0) Post("BTN right down");
-        if ((buttonFlags & RawMouse.RI_MOUSE_RIGHT_BUTTON_UP) != 0) Post("BTN right up");
-        if ((buttonFlags & RawMouse.RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0) Post("BTN middle down");
-        if ((buttonFlags & RawMouse.RI_MOUSE_MIDDLE_BUTTON_UP) != 0) Post("BTN middle up");
-        if ((buttonFlags & RawMouse.RI_MOUSE_BUTTON_4_DOWN) != 0) Post("BTN x1 down");
-        if ((buttonFlags & RawMouse.RI_MOUSE_BUTTON_4_UP) != 0) Post("BTN x1 up");
-        if ((buttonFlags & RawMouse.RI_MOUSE_BUTTON_5_DOWN) != 0) Post("BTN x2 down");
-        if ((buttonFlags & RawMouse.RI_MOUSE_BUTTON_5_UP) != 0) Post("BTN x2 up");
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_LEFT_BUTTON_DOWN, "left", true);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_LEFT_BUTTON_UP, "left", false);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_RIGHT_BUTTON_DOWN, "right", true);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_RIGHT_BUTTON_UP, "right", false);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_MIDDLE_BUTTON_DOWN, "middle", true);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_MIDDLE_BUTTON_UP, "middle", false);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_BUTTON_4_DOWN, "x1", true);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_BUTTON_4_UP, "x1", false);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_BUTTON_5_DOWN, "x2", true);
+        SendButton(buttonFlags, RawMouse.RI_MOUSE_BUTTON_5_UP, "x2", false);
+
         if ((buttonFlags & RawMouse.RI_MOUSE_WHEEL) != 0) Post($"WHEEL {buttonData}");
         if ((buttonFlags & RawMouse.RI_MOUSE_HWHEEL) != 0) Post($"HWHEEL {buttonData}");
+    }
+
+    static void SendButton(ushort flags, ushort mask, string name, bool down)
+    {
+        if ((flags & mask) == 0) return;
+        if (down) remoteButtons.Add(name); else remoteButtons.Remove(name);
+        Post($"BTN {name} {(down ? "down" : "up")}");
     }
 
     static IntPtr KeyboardHook(int nCode, IntPtr wParam, IntPtr lParam)
@@ -169,29 +223,58 @@ class Program
             bool isDown = wParam == (IntPtr)LowLevelHooks.WM_KEYDOWN || wParam == (IntPtr)LowLevelHooks.WM_SYSKEYDOWN;
             bool isUp = wParam == (IntPtr)LowLevelHooks.WM_KEYUP || wParam == (IntPtr)LowLevelHooks.WM_SYSKEYUP;
 
-            if (vkCode == VK_F9 && isDown)
+            // Swallow F9 in both directions. Forwarding only the down would
+            // leave the receiver seeing a key-up it never saw pressed.
+            if (vkCode == VK_F9)
             {
-                capturing = !capturing;
-                Console.WriteLine(capturing ? "-> Controlling REMOTE laptop" : "-> Controlling THIS laptop");
-                return (IntPtr)1; // swallow the toggle key itself
+                if (isDown) ToggleCapture();
+                return (IntPtr)1;
             }
 
             if (capturing)
             {
                 string ext = extended ? " ext" : "";
-                if (isDown) Post($"KEY {vkCode} down{ext}");
-                if (isUp) Post($"KEY {vkCode} up{ext}");
+                if (isDown) { remoteKeys[vkCode] = extended; Post($"KEY {vkCode} down{ext}"); }
+                if (isUp) { remoteKeys.Remove(vkCode); Post($"KEY {vkCode} up{ext}"); }
                 return (IntPtr)1; // swallow locally
             }
+
+            // Not capturing: just remember what is held, so we can release it
+            // on this machine when control moves to the receiver.
+            if (isDown) localKeys[vkCode] = extended;
+            if (isUp) localKeys.Remove(vkCode);
         }
         return LowLevelHooks.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
     }
 
-    // The mouse hook is now only a blocker: it stops local input from reaching
-    // this laptop while capturing. All movement/button data comes from Raw Input.
+    // While capturing, the mouse hook is only a blocker: it stops local input
+    // from reaching this laptop. All movement and button data comes from Raw
+    // Input. While not capturing it tracks which buttons are held locally.
     static IntPtr MouseHook(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && capturing) return (IntPtr)1;
+        if (nCode >= 0)
+        {
+            if (capturing) return (IntPtr)1;
+
+            switch ((int)wParam)
+            {
+                case LowLevelHooks.WM_LBUTTONDOWN: localButtons.Add("left"); break;
+                case LowLevelHooks.WM_LBUTTONUP: localButtons.Remove("left"); break;
+                case LowLevelHooks.WM_RBUTTONDOWN: localButtons.Add("right"); break;
+                case LowLevelHooks.WM_RBUTTONUP: localButtons.Remove("right"); break;
+                case LowLevelHooks.WM_MBUTTONDOWN: localButtons.Add("middle"); break;
+                case LowLevelHooks.WM_MBUTTONUP: localButtons.Remove("middle"); break;
+                case LowLevelHooks.WM_XBUTTONDOWN:
+                case LowLevelHooks.WM_XBUTTONUP:
+                {
+                    var hs = Marshal.PtrToStructure<LowLevelHooks.MSLLHOOKSTRUCT>(lParam);
+                    string name = ((hs.mouseData >> 16) & 0xffff) == 1 ? "x1" : "x2";
+                    if ((int)wParam == LowLevelHooks.WM_XBUTTONDOWN) localButtons.Add(name);
+                    else localButtons.Remove(name);
+                    break;
+                }
+            }
+        }
         return LowLevelHooks.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
     }
 }
@@ -327,6 +410,87 @@ static class RawMouse
     }
 }
 
+// ===================== Local input injection (release stuck keys) =====================
+static class LocalInput
+{
+    [StructLayout(LayoutKind.Sequential)]
+    struct INPUT { public uint type; public InputUnion U; }
+
+    [StructLayout(LayoutKind.Explicit)]
+    struct InputUnion
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct MOUSEINPUT
+    {
+        public int dx; public int dy; public uint mouseData;
+        public uint dwFlags; public uint time; public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct KEYBDINPUT
+    {
+        public ushort wVk; public ushort wScan; public uint dwFlags;
+        public uint time; public IntPtr dwExtraInfo;
+    }
+
+    const uint INPUT_MOUSE = 0;
+    const uint INPUT_KEYBOARD = 1;
+
+    const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
+    const uint MOUSEEVENTF_XUP = 0x0100;
+    const uint XBUTTON1 = 0x0001;
+    const uint XBUTTON2 = 0x0002;
+
+    const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+    const uint KEYEVENTF_KEYUP = 0x0002;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    public static void SendKey(ushort vk, bool down, bool extended)
+    {
+        uint flags = down ? 0u : KEYEVENTF_KEYUP;
+        if (extended) flags |= KEYEVENTF_EXTENDEDKEY;
+
+        var input = new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new InputUnion { ki = new KEYBDINPUT { wVk = vk, dwFlags = flags } }
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
+    public static void MouseButton(string button, bool down)
+    {
+        if (down) return; // only ever used to release
+
+        uint flag;
+        uint data = 0;
+        switch (button)
+        {
+            case "left": flag = MOUSEEVENTF_LEFTUP; break;
+            case "right": flag = MOUSEEVENTF_RIGHTUP; break;
+            case "middle": flag = MOUSEEVENTF_MIDDLEUP; break;
+            case "x1": flag = MOUSEEVENTF_XUP; data = XBUTTON1; break;
+            case "x2": flag = MOUSEEVENTF_XUP; data = XBUTTON2; break;
+            default: return;
+        }
+
+        var input = new INPUT
+        {
+            type = INPUT_MOUSE,
+            U = new InputUnion { mi = new MOUSEINPUT { mouseData = data, dwFlags = flag } }
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+}
+
 // ===================== Low-level hook plumbing =====================
 static class LowLevelHooks
 {
@@ -338,7 +502,29 @@ static class LowLevelHooks
     public const int WM_SYSKEYDOWN = 0x0104;
     public const int WM_SYSKEYUP = 0x0105;
 
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_LBUTTONUP = 0x0202;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const int WM_RBUTTONUP = 0x0205;
+    public const int WM_MBUTTONDOWN = 0x0207;
+    public const int WM_MBUTTONUP = 0x0208;
+    public const int WM_XBUTTONDOWN = 0x020B;
+    public const int WM_XBUTTONUP = 0x020C;
+
     public const uint LLKHF_EXTENDED = 0x01;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int x; public int y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KBDLLHOOKSTRUCT
