@@ -89,8 +89,17 @@ directly:
 powershell -ExecutionPolicy Bypass -File installer\firewall.ps1 -Action Add -ExePath "$env:LOCALAPPDATA\Programs\KRemote\KRemote.exe"
 ```
 
-That script elevates itself, and `-Action Remove` takes the rule back out. Do this
-on both PCs.
+That script elevates itself, and `-Action Remove` takes the rule back out. It logs
+what it did to `%TEMP%\KRemote-firewall.log`. Do this on both PCs.
+
+**Checking whether the rule exists needs an elevated shell.** From a normal
+PowerShell, `Get-NetFirewallRule` fails with *"Access is denied"* — and with
+`-ErrorAction SilentlyContinue` that looks exactly like the rule being absent.
+Run this **as administrator**:
+
+```powershell
+Get-NetFirewallRule -DisplayName KRemote | Get-NetFirewallPortFilter
+```
 
 ---
 
@@ -191,6 +200,7 @@ trust (your home or office LAN), not on public Wi-Fi.
 | Guest/public Wi-Fi does not work | Many public and guest networks isolate clients from each other, which blocks all direct PC-to-PC traffic. Nothing in the app can work around that. |
 | Message arrived but I did not notice | By design — arrival is silent. Check the inbox pane. |
 | Installer says the app is already installed | Run the uninstaller first, or just install over the top — the version is upgraded in place. |
+| `Get-NetFirewallRule` says the rule is missing | You are querying from a non-elevated shell, where the call fails with "Access is denied" rather than reporting the truth. Re-run it as administrator. |
 
 ---
 
