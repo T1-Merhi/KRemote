@@ -1,22 +1,69 @@
-# Build output
+# ---- .NET (SDK-style projects, dotnet CLI) ----
 [Bb]in/
 [Oo]bj/
+[Ll]og/
+[Ll]ogs/
 
-# Visual Studio
+# Publish output (see README: dotnet publish -o publish)
+publish/
+dist/
+[Pp]ublish/
+*.publishsettings
+PublishScripts/
+
+# MSBuild / build artifacts
+*.binlog
+msbuild.log
+msbuild.err
+msbuild.wrn
+artifacts/
+BenchmarkDotNet.Artifacts/
+
+# Single-file / AOT and ReadyToRun intermediates
+*.ilk
+*.pdb.tmp
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+project.lock.json
+project.fragment.lock.json
+.nuget/
+# Keep nuget.config if a project ever adds one; it is checked in on purpose.
+
+# ---- Visual Studio ----
 .vs/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+*.userprefs
+*.VC.db
+*.VC.VC.opendb
 
-# Rider / VS Code
-.idea/
+# ---- VS Code / Rider ----
 .vscode/
+.idea/
+*.sln.iml
 
-# NuGet
-*.nupkg
-packages/
+# ---- Test / coverage output ----
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
 
-# OS
+# ---- Local settings that should not be shared ----
+appsettings.*.local.json
+*.local.json
+launchSettings.json
+
+# ---- OS noise ----
 Thumbs.db
+ehthumbs.db
 desktop.ini
+$RECYCLE.BIN/
+.DS_Store

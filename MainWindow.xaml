@@ -1,0 +1,165 @@
+<Window x:Class="KRemote.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KRemote" Height="700" Width="1060" MinHeight="540" MinWidth="900"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI" Foreground="{StaticResource Ink}">
+
+    <Grid Margin="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" MinWidth="240"/>
+            <ColumnDefinition Width="14"/>
+            <ColumnDefinition Width="*" MinWidth="440"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ Devices on the network ============ -->
+        <Border Grid.Column="0" Background="{StaticResource Card}" CornerRadius="10"
+                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0">
+                    <TextBlock Text="Devices" Style="{StaticResource Title}"/>
+                    <TextBlock Style="{StaticResource Subtle}" Margin="0,3,0,0"
+                               Text="Scan the local network for other open KRemote apps."/>
+                </StackPanel>
+
+                <Button x:Name="ScanButton" Grid.Row="1" Style="{StaticResource PrimaryButton}"
+                        Content="Scan network" Margin="0,12,0,0" Click="ScanButton_Click"/>
+
+                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                    <ProgressBar x:Name="ScanProgress" Height="4" Minimum="0" Maximum="100"
+                                 Visibility="Collapsed" Foreground="{StaticResource Accent}"
+                                 Background="#EDEFF2" BorderThickness="0"/>
+                    <TextBlock x:Name="ScanStatus" Style="{StaticResource Subtle}" Margin="0,8,0,0"
+                               Text="No scan yet."/>
+                </StackPanel>
+
+                <ListBox x:Name="PeerList" Grid.Row="3" Style="{StaticResource FlatList}"
+                         Margin="0,10,0,0" SelectionChanged="PeerList_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding MachineName}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Address}" FontSize="11"
+                                           Foreground="{StaticResource Muted}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="4" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
+                        Padding="0,10,0,0" Margin="0,6,0,0">
+                    <TextBlock x:Name="SelfStatus" Style="{StaticResource Subtle}"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ============ Compose + inbox ============ -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="180"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="1.35*" MinHeight="200"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{StaticResource Card}" CornerRadius="10"
+                    BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Text to send" Style="{StaticResource Title}"/>
+                        <TextBlock x:Name="TargetLabel" Style="{StaticResource Subtle}" Margin="0,3,0,0"
+                                   Text="No device selected."/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="8"
+                            BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
+                        <TextBox x:Name="Editor" BorderThickness="0" Background="Transparent"
+                                 Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
+                                 AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" SpellCheck.IsEnabled="False"
+                                 PreviewKeyDown="Editor_PreviewKeyDown"/>
+                    </Border>
+
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
+                        <TextBlock x:Name="SendStatus" Style="{StaticResource Subtle}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Left"
+                                   Text="Pick a device, type your text, then Submit (Ctrl+Enter)."/>
+                        <Button x:Name="SubmitButton" Style="{StaticResource PrimaryButton}"
+                                Content="Submit" HorizontalAlignment="Right" MinWidth="110"
+                                Click="SubmitButton_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch"
+                          Background="Transparent" ResizeBehavior="PreviousAndNext"/>
+
+            <Border Grid.Row="2" Background="{StaticResource Card}" CornerRadius="10"
+                    BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="270" MinWidth="200"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*" MinWidth="240"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0">
+                        <TextBlock Text="Inbox" Style="{StaticResource Title}"/>
+                        <TextBlock x:Name="InboxStatus" Style="{StaticResource Subtle}" Margin="0,3,0,0"
+                                   Text="Nothing received yet."/>
+                    </StackPanel>
+
+                    <ListBox x:Name="InboxList" Grid.Row="1" Grid.Column="0" Style="{StaticResource FlatList}"
+                             Margin="0,10,0,0" SelectionChanged="InboxList_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Header}" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Preview}" FontSize="11" Margin="0,2,0,0"
+                                               Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="CopyButton" Style="{StaticResource GhostButton}" Content="Copy"
+                                IsEnabled="False" Click="CopyButton_Click"/>
+                        <Button x:Name="SaveButton" Style="{StaticResource GhostButton}" Content="Save"
+                                Margin="8,0,0,0" IsEnabled="False" Click="SaveButton_Click"/>
+                        <Button x:Name="DeleteButton" Style="{StaticResource GhostButton}" Content="Delete"
+                                Margin="8,0,0,0" IsEnabled="False" Foreground="{StaticResource Danger}"
+                                Click="DeleteButton_Click"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Grid.Column="2" Margin="0,10,0,0" CornerRadius="8"
+                            BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
+                        <TextBox x:Name="MessageView" BorderThickness="0" Background="Transparent"
+                                 Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
+                                 IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
