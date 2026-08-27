@@ -21,13 +21,13 @@ public sealed class MessageStore
 
     public string Location => FilePath;
 
-    public List<TextMessage> Load()
+    public List<InboxMessage> Load()
     {
         try
         {
             if (!File.Exists(FilePath)) return [];
             var json = File.ReadAllText(FilePath);
-            var messages = JsonSerializer.Deserialize<List<TextMessage>>(json, Options) ?? [];
+            var messages = JsonSerializer.Deserialize<List<InboxMessage>>(json, Options) ?? [];
             foreach (var message in messages) message.IsSaved = true;
             return messages;
         }
@@ -37,7 +37,7 @@ public sealed class MessageStore
         }
     }
 
-    public void Save(IEnumerable<TextMessage> saved)
+    public void Save(IEnumerable<InboxMessage> saved)
     {
         Directory.CreateDirectory(Directory_);
         var json = JsonSerializer.Serialize(saved.ToList(), Options);

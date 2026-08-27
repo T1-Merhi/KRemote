@@ -2,7 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Text;
+
 using KRemote.Models;
 
 namespace KRemote.Net;
@@ -112,17 +112,12 @@ public static class PeerScanner
             }
 
             using var stream = client.GetStream();
-            using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, leaveOpen: true);
-            using var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024, leaveOpen: true)
-            {
-                AutoFlush = true
-            };
 
             using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             handshakeCts.CancelAfter(HandshakeTimeoutMs);
 
-            await writer.WriteLineAsync(Protocol.Serialize(Frame.Ping()).AsMemory(), handshakeCts.Token);
-            var line = await reader.ReadLineAsync(handshakeCts.Token);
+            await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ping()), handshakeCts.Token);
+            var line = await LineIO.ReadLineAsync(stream, handshakeCts.Token);
             if (line is null) return null;
 
             var frame = Protocol.Deserialize(line);

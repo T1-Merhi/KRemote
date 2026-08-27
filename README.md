@@ -1,9 +1,13 @@
 # KRemote
 
-Send a block of text from one PC to another on the same local network.
+Send text or a file from one PC to another on the same local network.
 
 Open KRemote on both PCs, press **Scan network**, pick the other PC from the list,
-type or paste your text, and press **Submit**. The text lands in that PC's inbox.
+then either type your text and press **Submit**, or press **Send file…** and choose
+one. It lands in that PC's inbox. Every message can carry an optional **title**.
+
+Files stream in 64 KB chunks with no size limit — a 220 MB file moves in half a
+second over a wired LAN, and the app's memory use does not move at all.
 
 There is no server, no account, and no internet involved — the two apps talk
 directly to each other over your LAN.
@@ -118,40 +122,57 @@ starting the app on the other PC.
 
 Your own PC never appears in its own list.
 
-### 2. Text to send (top right)
+### 2. Send (top right)
 
-Click a device in the list, then type or paste into the editor. Press **Submit**
-(or **Ctrl+Enter**) to send.
+Click a device in the list, then send one of two things:
 
-The status line under the editor tells you what happened: `Sent to DESKTOP-B at
-14:22:07`, or the reason it failed. The editor clears itself only after a
-successful send, so nothing is lost if the other PC is unreachable.
+- **Text** — type or paste into the editor and press **Submit** (or **Ctrl+Enter**).
+- **A file** — press **Send file…**, pick one file, and it starts immediately. A
+  progress bar shows percent, bytes and, when it finishes, the transfer rate.
 
-One send goes to one selected device.
+**Title** is optional and applies to both. Whatever you type there becomes the bold
+line for that message in the receiver's inbox; leave it empty and the inbox falls
+back to the first line of the text, or the file's name.
+
+The status line tells you what happened: `Sent to DESKTOP-B at 14:22:07`, or the
+reason it failed. The editor and title clear themselves only after a successful
+send, so nothing is lost if the other PC is unreachable.
+
+One send goes to one selected device, one file at a time.
 
 ### 3. Inbox (bottom right)
 
-Text arriving from another PC is appended to the inbox, newest first. Arrival is
-**silent** — no popup, no window stealing focus, no sound. Click a message to read
-the full text on the right.
+Whatever arrives is appended to the inbox, newest first. Arrival is **silent** — no
+popup, no window stealing focus, no sound. The only exception is that an incoming
+file shows live progress on the inbox line, because a large transfer would
+otherwise look like nothing happening.
 
-Three buttons act on the selected message:
+Click an item to see it on the right: the full text, or the file's name, size,
+sender and path.
 
 | Button | What it does |
 | --- | --- |
-| **Copy** | Puts the message text on this PC's clipboard, ready to paste. |
-| **Save** | Writes the message to disk so it comes back next time you open KRemote. |
-| **Delete** | Removes the message from the inbox, and from disk if it was saved. |
+| **Open** | Opens the received file in whatever it is associated with. Files only. |
+| **Show in folder** | Opens Explorer with the file selected. Files only. |
+| **Copy** | Copies the message text — or, for a file, its full path. |
+| **Save** | Keeps this row so it comes back next time you open KRemote. |
+| **Delete** | Removes the row from the inbox. |
 
-**The inbox is memory-only by default.** Anything you have not pressed **Save** on
-is gone when you close the app. Saved messages reload on the next launch and are
-marked `saved` in the list.
-
-Saved messages live in:
+**The inbox is memory-only by default.** Any row you have not pressed **Save** on is
+gone when you close the app. Saved rows reload on the next launch and are marked
+`saved`.
 
 ```
-%AppData%\KRemote\saved-messages.json
+%AppData%\KRemote\saved-messages.json     saved inbox rows
+%UserProfile%\Downloads\KRemote\          received files
 ```
+
+**Deleting a file's row never deletes the file.** The bytes are already on disk in
+`Downloads\KRemote`; the row is just the inbox entry. Use **Show in folder** if you
+want to remove the file itself.
+
+Received files never overwrite anything. A second `report.pdf` is saved as
+`report (2).pdf`.
 
 ---
 
@@ -165,7 +186,7 @@ Both halves live in the same app — every instance listens and can send.
   to 128 probes in parallel, and sends a `ping`. Anything that replies `pong` with
   its machine name is a running KRemote. There are no background broadcasts or
   announcements — nothing is sent until you press the button.
-- **Messages**: one UTF-8 JSON object per line over TCP, one message per
+- **Messages**: a newline-delimited UTF-8 JSON header over TCP, one exchange per
   connection. The receiver replies `ok`, which is what turns into the "Sent"
   confirmation on the sender's side.
 
@@ -173,19 +194,43 @@ Both halves live in the same app — every instance listens and can send.
 scan   →  {"type":"ping"}
        ←  {"type":"pong","name":"DESKTOP-B"}
 
-send   →  {"type":"text","name":"DESKTOP-A","text":"hello"}
+text   →  {"type":"text","name":"DESKTOP-A","title":"Notes","text":"hello"}
+       ←  {"type":"ok"}
+
+file   →  {"type":"file","name":"DESKTOP-A","fileName":"a.pdf","size":41234}
+       ←  {"type":"ready"}
+       →  <exactly `size` raw bytes>
        ←  {"type":"ok"}
 ```
 
-Because the text is JSON-escaped, line breaks, tabs, quotes, accents and emoji all
-survive the trip intact. Large pastes are fine — a 400 KB block was tested.
+Text rides inside the JSON, which escapes newlines and keeps the framing intact, so
+line breaks, tabs, quotes, accents and emoji all survive. **File bytes do not** —
+they follow the header as a raw stream of known length, read and written 64 KB at a
+time, so a multi-gigabyte file never exists in memory on either side.
+
+Three details make that safe rather than merely fast:
+
+- The receiver answers `ready` **before** the first byte moves, so it can refuse a
+  transfer (unwritable folder, nonsense size) without the sender having pushed the
+  whole file first.
+- Bytes land in a `.part` file that is renamed only on success. An interrupted
+  transfer leaves nothing behind, rather than a truncated file that looks real.
+- The stall timeout (60 s) is refreshed per chunk. It limits *silence*, not the
+  duration of the transfer, so a slow link is never killed for being slow.
 
 ### Security
 
-There is **no passcode and no encryption**. Any KRemote instance that can reach
-port 5555 on your PC can put text in your inbox, and the text crosses the network
-in plain form. That is a deliberate trade for zero setup — use it on a network you
-trust (your home or office LAN), not on public Wi-Fi.
+There is **no passcode and no encryption**. Any KRemote instance that can reach port
+5555 on your PC can put text in your inbox **and write a file into
+`Downloads\KRemote`**, and everything crosses the network in plain form. That is a
+deliberate trade for zero setup — use it on a network you trust (your home or office
+LAN), not on public Wi-Fi.
+
+Incoming file names are never trusted. Every directory component is stripped before
+the name is used, so `..\..\Windows\System32\evil.dll` is written as `evil.dll`
+inside the downloads folder and cannot escape it. Invalid characters are replaced,
+Windows reserved names (`CON`, `NUL`, `COM1`…) are prefixed, and nothing is ever
+executed — files are only written to disk.
 
 ---
 
@@ -199,6 +244,10 @@ trust (your home or office LAN), not on public Wi-Fi.
 | `Could not send…: No connection could be made` | The other app was closed after your last scan. Scan again. |
 | Guest/public Wi-Fi does not work | Many public and guest networks isolate clients from each other, which blocks all direct PC-to-PC traffic. Nothing in the app can work around that. |
 | Message arrived but I did not notice | By design — arrival is silent. Check the inbox pane. |
+| Where did the file go? | `%UserProfile%\Downloads\KRemote`. Select the row and press **Show in folder**. |
+| I deleted the row but the file is still there | Correct — Delete removes the inbox entry, never the downloaded file. Delete the file from Explorer. |
+| A transfer died partway | Nothing is left behind; the partial `.part` file is discarded. Send it again. |
+| File arrived with `(2)` in the name | A file of that name already existed. KRemote never overwrites. |
 | Installer says the app is already installed | Run the uninstaller first, or just install over the top — the version is upgraded in place. |
 | `Get-NetFirewallRule` says the rule is missing | You are querying from a non-elevated shell, where the call fails with "Access is denied" rather than reporting the truth. Re-run it as administrator. |
 
@@ -214,12 +263,13 @@ App.xaml                Application resources and control styles
 MainWindow.xaml(.cs)    The three panes and all UI behavior
 Models/
   Peer.cs               A discovered PC: machine name + address
-  TextMessage.cs        A received message, with its saved/unsaved state
+  InboxMessage.cs       A received text or file, with its saved/unsaved state
 Net/
-  Protocol.cs           Port, frame shapes, JSON helpers
-  PeerServer.cs         Listener: answers probes, raises received messages
+  Protocol.cs           Port, frame shapes, chunk size, timeouts
+  LineIO.cs             Unbuffered header reads, so file bytes are never swallowed
+  PeerServer.cs         Listener: answers probes, receives text and streams files in
   PeerScanner.cs        Subnet sweep
-  PeerSender.cs         Sends one message to one peer
+  PeerSender.cs         Sends one message or one file to one peer
 Storage/
   MessageStore.cs       Reads and writes saved-messages.json
 installer/

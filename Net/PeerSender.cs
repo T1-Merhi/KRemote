@@ -1,39 +1,114 @@
 using System.IO;
 using System.Net.Sockets;
-using System.Text;
 
 namespace KRemote.Net;
 
 /// <summary>
-/// The sending half: opens a connection to one chosen peer, writes a single
-/// text frame and waits for its acknowledgement. Any failure is thrown so the
-/// UI can say the delivery did not happen rather than silently pretending it
-/// did.
+/// The sending half: opens a connection to one chosen peer, hands over a text
+/// message or a file, and waits for the acknowledgement. Any failure is thrown
+/// so the UI can say the delivery did not happen rather than silently
+/// pretending it did.
 /// </summary>
 public static class PeerSender
 {
-    private const int TimeoutMs = 5000;
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
 
-    public static async Task SendAsync(string address, string text, CancellationToken ct)
+    public static async Task SendTextAsync(string address, string? title, string text, CancellationToken ct)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeoutMs);
-
-        using var client = new TcpClient();
-        await client.ConnectAsync(address, Protocol.Port, cts.Token);
-
+        using var client = await ConnectAsync(address, ct);
         using var stream = client.GetStream();
-        using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, leaveOpen: true);
-        using var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024, leaveOpen: true)
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(Protocol.StallTimeout);
+
+        var frame = Frame.TextMessage(Environment.MachineName, title, text);
+        await LineIO.WriteLineAsync(stream, Protocol.Serialize(frame), timeout.Token);
+
+        await ExpectAsync(stream, "ok", timeout);
+    }
+
+    /// <summary>
+    /// Streams one file to a peer, reporting bytes sent as it goes. The file is
+    /// read and written in <see cref="Protocol.ChunkSize"/> pieces, so its size
+    /// is bounded by the disk rather than by memory.
+    /// </summary>
+    public static async Task SendFileAsync(
+        string address, string? title, string filePath, IProgress<long>? progress, CancellationToken ct)
+    {
+        await using var file = new FileStream(
+            filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            Protocol.ChunkSize, useAsync: true);
+
+        var size = file.Length;
+        var fileName = Path.GetFileName(filePath);
+
+        using var client = await ConnectAsync(address, ct);
+        using var stream = client.GetStream();
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(Protocol.StallTimeout);
+
+        var header = Frame.FileHeader(Environment.MachineName, title, fileName, size);
+        await LineIO.WriteLineAsync(stream, Protocol.Serialize(header), timeout.Token);
+
+        // The receiver vets the name and the folder before any bytes move.
+        await ExpectAsync(stream, "ready", timeout);
+
+        var buffer = new byte[Protocol.ChunkSize];
+        var sent = 0L;
+        progress?.Report(0);
+
+        while (sent < size)
         {
-            AutoFlush = true
-        };
+            timeout.CancelAfter(Protocol.StallTimeout);
 
-        var frame = Frame.TextMessage(Environment.MachineName, text);
-        await writer.WriteLineAsync(Protocol.Serialize(frame).AsMemory(), cts.Token);
+            var read = await file.ReadAsync(buffer, timeout.Token);
+            if (read == 0)
+                throw new IOException($"{fileName} ended after {sent:N0} of {size:N0} bytes -- was it modified mid-send?");
 
-        var reply = await reader.ReadLineAsync(cts.Token);
-        if (Protocol.Deserialize(reply ?? "")?.Type != "ok")
-            throw new IOException("The other PC did not acknowledge the message.");
+            await stream.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+            sent += read;
+            progress?.Report(sent);
+        }
+
+        await stream.FlushAsync(timeout.Token);
+        await ExpectAsync(stream, "ok", timeout);
+    }
+
+    private static async Task<TcpClient> ConnectAsync(string address, CancellationToken ct)
+    {
+        var client = new TcpClient();
+        try
+        {
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(ConnectTimeout);
+            await client.ConnectAsync(address, Protocol.Port, connectCts.Token);
+            return client;
+        }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Reads one reply and insists it is the expected verb. A "refused" frame
+    /// carries the receiver's reason, which is far more useful to show than a
+    /// generic failure.
+    /// </summary>
+    private static async Task ExpectAsync(NetworkStream stream, string type, CancellationTokenSource timeout)
+    {
+        timeout.CancelAfter(Protocol.StallTimeout);
+
+        var line = await LineIO.ReadLineAsync(stream, timeout.Token);
+        var reply = Protocol.Deserialize(line ?? "");
+
+        if (reply?.Type == type) return;
+
+        if (reply?.Type == "refused")
+            throw new IOException(reply.Error ?? "The other PC refused the transfer.");
+
+        throw new IOException($"Expected \"{type}\" from the other PC but got \"{reply?.Type ?? "nothing"}\".");
     }
 }
