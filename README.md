@@ -37,7 +37,7 @@ other. They are the same app and talk to each other either way.
 
 ### Option A — the installer (recommended)
 
-Run **`dist\KRemote-Setup-1.0.0.exe`** and click through it. It:
+Run **`dist\KRemote-Setup-1.1.0.exe`** and click through it. It:
 
 - installs to `%LocalAppData%\Programs\KRemote` **without an admin prompt**,
 - puts a **KRemote shortcut on your desktop** and in the Start Menu,
@@ -45,13 +45,13 @@ Run **`dist\KRemote-Setup-1.0.0.exe`** and click through it. It:
   admin — see [Firewall](#firewall) below),
 - registers a proper uninstaller in *Apps & features*.
 
-To set up the second PC, copy that single `KRemote-Setup-1.0.0.exe` onto it (USB
+To set up the second PC, copy that single `KRemote-Setup-1.1.0.exe` onto it (USB
 stick, shared folder, whatever) and run it there. It needs nothing preinstalled.
 
 Silent install, if you prefer:
 
 ```powershell
-.\dist\KRemote-Setup-1.0.0.exe /VERYSILENT /NORESTART /TASKS="desktopicon,firewallrule"
+.\dist\KRemote-Setup-1.1.0.exe /VERYSILENT /NORESTART /TASKS="desktopicon,firewallrule"
 ```
 
 To uninstall: *Settings → Apps → KRemote → Uninstall*, or run
@@ -75,7 +75,7 @@ powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 
 It publishes the app self-contained into `publish\`, then compiles
 `installer\KRemote.iss` into `dist\KRemote-Setup-<version>.exe` (about 43 MB).
-Pass `-Version 1.1.0` to stamp a different version, or `-SkipPublish` to reuse
+Pass `-Version 1.2.0` to stamp a different version, or `-SkipPublish` to reuse
 the existing `publish\` output.
 
 ### Firewall

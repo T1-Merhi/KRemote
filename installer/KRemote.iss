@@ -10,7 +10,7 @@
 
 #define AppName        "KRemote"
 #ifndef AppVersion
-  #define AppVersion   "1.0.0"
+  #define AppVersion   "1.1.0"
 #endif
 #define AppPublisher   "Hussein Merhi"
 #define AppExeName     "KRemote.exe"
