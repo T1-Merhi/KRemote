@@ -23,6 +23,34 @@ BenchmarkDotNet.Artifacts/
 *.ilk
 *.pdb.tmp
 
+# ---- MAUI / MSIX packaging ----
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+*.msixupload
+GeneratedArtifacts/
+_Pvt_Extensions/
+
+# Signing material never belongs in the repository.
+*.pfx
+*.snk
+*.p12
+*.cer
+*.keystore
+*.jks
+
+# ---- Android ----
+*.apk
+*.aab
+*.class
+*.dex
+local.properties
+Resources/Resource.designer.cs
+
 # ---- NuGet ----
 *.nupkg
 *.snupkg
