@@ -117,7 +117,9 @@ public partial class MainWindow : Window
 
     private void ShareButton_Click(object sender, RoutedEventArgs e)
     {
-        // Populated fully once the Share popup exists; for now this is a stub.
+        var popup = new Views.SharePopup { Owner = this };
+        if (popup.ShowDialog() == true && popup.SuccessMessage is not null)
+            ShowToast(popup.SuccessMessage);
     }
 
     /// <summary>Shows a small self-dismissing confirmation, e.g. after a successful send.</summary>
