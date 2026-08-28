@@ -11,5 +11,14 @@ public sealed class Peer
     public required string MachineName { get; init; }
     public required string Address { get; init; }
 
+    /// <summary>Optional label the other PC chose for itself, shown alongside its machine name.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Whether this peer requires a PIN before it accepts anything.</summary>
+    public bool IsProtected { get; init; }
+
+    /// <summary>What to show in the device list: the display name alongside the machine name, or just the machine name.</summary>
+    public string Label => string.IsNullOrWhiteSpace(DisplayName) ? MachineName : $"{DisplayName} ({MachineName})";
+
     public override string ToString() => MachineName;
 }

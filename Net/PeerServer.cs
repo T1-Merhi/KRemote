@@ -19,6 +19,7 @@ public sealed class PeerServer : IDisposable
     private readonly TcpListener _listener = new(IPAddress.Any, Protocol.Port);
     private readonly CancellationTokenSource _cts = new();
     private readonly Func<AppSettings> _settings;
+    private readonly Func<string> _currentPin;
     private bool _started;
 
     private sealed record PendingGroup(InboxMessage Message, int ExpectedCount)
@@ -33,9 +34,10 @@ public sealed class PeerServer : IDisposable
     /// <summary>Fires repeatedly while a file is arriving: name, bytes so far, total.</summary>
     public event Action<string, long, long>? TransferProgress;
 
-    public PeerServer(Func<AppSettings>? settings = null)
+    public PeerServer(Func<AppSettings>? settings = null, Func<string>? currentPin = null)
     {
         _settings = settings ?? (() => new AppSettings());
+        _currentPin = currentPin ?? (() => _settings().Pin);
     }
 
     /// <summary>Where received files are written when no Settings override is set.</summary>
@@ -108,13 +110,29 @@ public sealed class PeerServer : IDisposable
                 var frame = Protocol.Deserialize(line);
                 if (frame is null) return;
 
+                var settings = _settings();
+
                 switch (frame.Type)
                 {
                     case "ping":
-                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Pong(Environment.MachineName)), timeout.Token);
+                        var pong = Frame.Pong(Environment.MachineName, settings.DisplayName, settings.PinEnabled);
+                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(pong), timeout.Token);
+                        break;
+
+                    case "verifypin":
+                        var verifyReply = IsPinCorrect(frame, settings)
+                            ? Frame.Ok()
+                            : Frame.Refused("Incorrect PIN.");
+                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(verifyReply), timeout.Token);
                         break;
 
                     case "text":
+                        if (!IsPinCorrect(frame, settings))
+                        {
+                            await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
+                            break;
+                        }
+
                         await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
                         MessageReceived?.Invoke(new InboxMessage
                         {
@@ -128,6 +146,12 @@ public sealed class PeerServer : IDisposable
                         break;
 
                     case "file":
+                        if (!IsPinCorrect(frame, settings))
+                        {
+                            await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
+                            break;
+                        }
+
                         await ReceiveFileAsync(stream, frame, remote, timeout);
                         break;
                 }
@@ -136,6 +160,17 @@ public sealed class PeerServer : IDisposable
             catch (OperationCanceledException) { }
             catch (SocketException) { }
         }
+    }
+
+    /// <summary>
+    /// True when this PC does not require a PIN, or the frame carries the
+    /// correct one. A missing or blank PIN is never treated as "protection
+    /// disabled" -- protection state lives only on the receiver.
+    /// </summary>
+    private bool IsPinCorrect(Frame frame, AppSettings settings)
+    {
+        if (!settings.PinEnabled) return true;
+        return !string.IsNullOrEmpty(frame.Pin) && frame.Pin == _currentPin();
     }
 
     private async Task ReceiveFileAsync(

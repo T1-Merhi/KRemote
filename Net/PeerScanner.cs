@@ -126,7 +126,9 @@ public static class PeerScanner
             return new Peer
             {
                 MachineName = string.IsNullOrWhiteSpace(frame.Name) ? ip.ToString() : frame.Name!,
-                Address = ip.ToString()
+                Address = ip.ToString(),
+                DisplayName = string.IsNullOrWhiteSpace(frame.DisplayName) ? null : frame.DisplayName,
+                IsProtected = frame.Protected == true
             };
         }
         catch (OperationCanceledException) { return null; }

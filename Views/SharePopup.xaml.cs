@@ -21,18 +21,21 @@ public partial class SharePopup : Window
     private readonly ObservableCollection<Peer> _peers = [];
     private readonly ObservableCollection<StagedAttachment> _attachments = [];
     private readonly AppSettings _settings;
+    private readonly PinManager _pinManager;
 
     private bool _scanning;
     private bool _sending;
+    private bool _unlocking;
 
     /// <summary>Set when a send completes successfully, so the owner can show a toast.</summary>
     public string? SuccessMessage { get; private set; }
 
-    public SharePopup(AppSettings settings)
+    public SharePopup(AppSettings settings, PinManager pinManager)
     {
         InitializeComponent();
 
         _settings = settings;
+        _pinManager = pinManager;
         PeerList.ItemsSource = _peers;
         AttachmentList.ItemsSource = _attachments;
     }
@@ -49,6 +52,7 @@ public partial class SharePopup : Window
         ScanProgress.Visibility = Visibility.Visible;
         ScanStatus.Text = "Scanning the local subnet…";
         _peers.Clear();
+        _pinManager.ResetSession();
 
         var progress = new Progress<(int done, int total)>(p =>
         {
@@ -78,16 +82,68 @@ public partial class SharePopup : Window
             ScanButton.IsEnabled = true;
             ScanProgress.Visibility = Visibility.Collapsed;
             UpdateTargetLabel();
+            UpdatePinGate();
         }
     }
 
-    private void PeerList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateTargetLabel();
+    private void PeerList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateTargetLabel();
+        UpdatePinGate();
+    }
 
     private void UpdateTargetLabel()
     {
         TargetLabel.Text = PeerList.SelectedItem is Peer peer
-            ? $"Sending to {peer.MachineName} ({peer.Address})."
+            ? $"Sending to {peer.Label}."
             : "No device selected.";
+    }
+
+    /// <summary>Shows the inline PIN row and disables composing when the selected peer is protected and not yet unlocked.</summary>
+    private void UpdatePinGate()
+    {
+        var needsUnlock = PeerList.SelectedItem is Peer { IsProtected: true } peer && !_pinManager.IsUnlocked(peer.Address);
+
+        PinUnlockRow.Visibility = needsUnlock ? Visibility.Visible : Visibility.Collapsed;
+        PinEntryBox.Password = "";
+
+        var composeEnabled = !needsUnlock;
+        TitleRow.IsEnabled = composeEnabled;
+        TextRow.IsEnabled = composeEnabled;
+        AttachmentsRow.IsEnabled = composeEnabled;
+        AttachFilesButton.IsEnabled = composeEnabled;
+        SendButton.IsEnabled = composeEnabled;
+    }
+
+    private async void UnlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_unlocking) return;
+        if (PeerList.SelectedItem is not Peer peer) return;
+
+        var pin = PinEntryBox.Password.Trim();
+        if (pin.Length != 4 || !pin.All(char.IsDigit))
+        {
+            ShowError("Enter the 4-digit PIN.");
+            return;
+        }
+
+        _unlocking = true;
+        HideError();
+
+        try
+        {
+            await PeerSender.VerifyPinAsync(peer.Address, pin, CancellationToken.None);
+            _pinManager.Unlock(peer.Address, pin);
+            UpdatePinGate();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Could not unlock {peer.MachineName}: {ex.Message}");
+        }
+        finally
+        {
+            _unlocking = false;
+        }
     }
 
     // ---------------------------------------------------------------- compose
@@ -149,6 +205,13 @@ public partial class SharePopup : Window
             return;
         }
 
+        if (peer.IsProtected && !_pinManager.IsUnlocked(peer.Address))
+        {
+            ShowError("Enter this device's PIN first.");
+            return;
+        }
+
+        var pin = peer.IsProtected ? _pinManager.GetCachedPin(peer.Address) : null;
         var text = Editor.Text;
         var title = TitleBox.Text;
         var hasText = !string.IsNullOrEmpty(text);
@@ -180,11 +243,11 @@ public partial class SharePopup : Window
         {
             if (!hasAttachments)
             {
-                await PeerSender.SendTextAsync(peer.Address, title, text, CancellationToken.None);
+                await PeerSender.SendTextAsync(peer.Address, title, text, CancellationToken.None, pin);
             }
             else
             {
-                await SendAttachmentsAsync(peer, title, hasText ? text : null);
+                await SendAttachmentsAsync(peer, title, hasText ? text : null, pin);
             }
             SuccessMessage = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
 
@@ -204,7 +267,7 @@ public partial class SharePopup : Window
         }
     }
 
-    private async Task SendAttachmentsAsync(Peer peer, string? title, string? text)
+    private async Task SendAttachmentsAsync(Peer peer, string? title, string? text, string? pin)
     {
         TransferPanel.Visibility = Visibility.Visible;
         var files = _attachments.Select(a => a.FilePath).ToList();
@@ -219,7 +282,7 @@ public partial class SharePopup : Window
                 : $"{percent:0}%";
         });
 
-        await PeerSender.SendFilesAsync(peer.Address, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None);
+        await PeerSender.SendFilesAsync(peer.Address, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None, pin);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

@@ -202,7 +202,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Security (placeholder controls; fully wired once PIN protection lands) -->
+                        <!-- Security -->
                         <Border Background="{StaticResource Card}" CornerRadius="10"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
                             <StackPanel>

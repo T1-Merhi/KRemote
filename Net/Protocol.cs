@@ -8,9 +8,9 @@ namespace KRemote.Net;
 /// connection. Three verbs exist.
 ///
 ///   scan  ->  {"type":"ping"}                              (client)
-///         &lt;-  {"type":"pong","name":"DESKTOP-A1"}         (server)
+///         &lt;-  {"type":"pong","name":"DESKTOP-A1","displayName":"Hussein's PC","protected":true}  (server)
 ///
-///   text  ->  {"type":"text","name":"DESKTOP-A1","text":"…"}
+///   text  ->  {"type":"text","name":"DESKTOP-A1","text":"…","pin":"1234"}
 ///         &lt;-  {"type":"ok"}
 ///
 ///   file  ->  {"type":"file","name":"DESKTOP-A1","fileName":"a.pdf","size":41234}
@@ -46,6 +46,22 @@ namespace KRemote.Net;
 /// All group fields are optional and additive: an old receiver without them
 /// simply gets each file as its own separate inbox entry, which is a safe,
 /// non-corrupting degradation.
+///
+/// A PC can optionally require a 4-digit PIN before it accepts anything. Its
+/// pong carries "protected": true so senders see a lock icon before they even
+/// try; text and file frames then carry the PIN the sender was given, which
+/// the receiver checks before doing any other work. A separate lightweight
+/// verb lets the Share popup check a PIN immediately, without writing
+/// anything to disk or touching the inbox:
+///
+///   verify -> {"type":"verifypin","pin":"1234"}
+///         &lt;- {"type":"ok"}                    (or {"type":"refused","error":"…"})
+///
+/// This is a UX nicety layered on top of the real enforcement -- the
+/// unconditional check on "text"/"file" frames is what actually protects the
+/// receiver, regardless of any earlier verifypin result. All of these fields
+/// are optional and additive: an old instance without PIN support simply
+/// never sends one, which an unprotected receiver accepts exactly as before.
 /// </summary>
 public static class Protocol
 {
@@ -88,24 +104,31 @@ public sealed class Frame
     [JsonPropertyName("groupId")] public string? GroupId { get; set; }
     [JsonPropertyName("groupCount")] public int? GroupCount { get; set; }
     [JsonPropertyName("groupIndex")] public int? GroupIndex { get; set; }
+    [JsonPropertyName("displayName")] public string? DisplayName { get; set; }
+    [JsonPropertyName("protected")] public bool? Protected { get; set; }
+    [JsonPropertyName("pin")] public string? Pin { get; set; }
 
     public static Frame Ping() => new() { Type = "ping" };
-    public static Frame Pong(string name) => new() { Type = "pong", Name = name };
+
+    public static Frame Pong(string name, string? displayName = null, bool @protected = false) =>
+        new() { Type = "pong", Name = name, DisplayName = Blank(displayName), Protected = @protected ? true : null };
+
     public static Frame Ok() => new() { Type = "ok" };
     public static Frame Ready() => new() { Type = "ready" };
     public static Frame Refused(string reason) => new() { Type = "refused", Error = reason };
+    public static Frame VerifyPin(string pin) => new() { Type = "verifypin", Pin = pin };
 
     // Title is optional on both message kinds; null keeps it off the wire.
-    public static Frame TextMessage(string name, string? title, string text) =>
-        new() { Type = "text", Name = name, Title = Blank(title), Text = text };
+    public static Frame TextMessage(string name, string? title, string text, string? pin = null) =>
+        new() { Type = "text", Name = name, Title = Blank(title), Text = text, Pin = pin };
 
     public static Frame FileHeader(
         string name, string? title, string fileName, long size,
-        string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null) =>
+        string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null, string? pin = null) =>
         new()
         {
             Type = "file", Name = name, Title = Blank(title), FileName = fileName, Size = size,
-            Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex
+            Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex, Pin = pin
         };
 
     private static string? Blank(string? value) =>

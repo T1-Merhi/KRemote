@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -53,20 +54,53 @@
                          Margin="0,8,0,0" SelectionChanged="PeerList_SelectionChanged">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel>
-                                <TextBlock Text="{Binding MachineName}" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding Address}" FontSize="11"
-                                           Foreground="{StaticResource Muted}"/>
-                            </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Address}" FontSize="11" Foreground="{StaticResource Muted}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="14" Foreground="{StaticResource Muted}" VerticalAlignment="Center"
+                                           ToolTip="PIN protected"
+                                           Visibility="{Binding IsProtected, Converter={StaticResource BoolToVis}}"/>
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </Grid>
         </Border>
 
+        <!-- PIN unlock row, shown only when the selected peer is protected and not yet unlocked -->
+        <Border x:Name="PinUnlockRow" Grid.Row="2" Margin="0,10,0,0" CornerRadius="8"
+                Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
+                BorderThickness="1" Padding="10" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="This device requires a PIN before it will accept anything." FontSize="12.5"
+                           Foreground="{StaticResource Ink}" TextWrapping="Wrap"/>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" CornerRadius="8" BorderBrush="{StaticResource Line}"
+                            BorderThickness="1" Background="White" Width="120">
+                        <PasswordBox x:Name="PinEntryBox" BorderThickness="0" Background="Transparent"
+                                     Padding="10,8" FontSize="15" FontFamily="Consolas" MaxLength="4"/>
+                    </Border>
+                    <Button Grid.Column="2" Style="{StaticResource PrimaryButton}" Content="Unlock"
+                            Click="UnlockButton_Click"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- Title -->
-        <Border Grid.Row="2" Margin="0,10,0,0" CornerRadius="8"
+        <Border x:Name="TitleRow" Grid.Row="3" Margin="0,10,0,0" CornerRadius="8"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
             <Grid>
                 <TextBox x:Name="TitleBox" BorderThickness="0" Background="Transparent"
@@ -80,7 +114,7 @@
         </Border>
 
         <!-- Text -->
-        <Border Grid.Row="3" Margin="0,10,0,0" CornerRadius="8" Height="120"
+        <Border x:Name="TextRow" Grid.Row="4" Margin="0,10,0,0" CornerRadius="8" Height="120"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
             <TextBox x:Name="Editor" BorderThickness="0" Background="Transparent"
                      Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
@@ -89,7 +123,7 @@
         </Border>
 
         <!-- Attachments -->
-        <Border Grid.Row="4" Margin="0,10,0,0" CornerRadius="8" MinHeight="60"
+        <Border x:Name="AttachmentsRow" Grid.Row="5" Margin="0,10,0,0" CornerRadius="8" MinHeight="60"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD" Padding="8">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="AttachmentList">
@@ -120,26 +154,26 @@
         </Border>
 
         <!-- Inline error banner -->
-        <Border x:Name="ErrorBanner" Grid.Row="5" Margin="0,10,0,0" CornerRadius="8"
+        <Border x:Name="ErrorBanner" Grid.Row="6" Margin="0,10,0,0" CornerRadius="8"
                 Background="#FDECEA" BorderBrush="{StaticResource Danger}" BorderThickness="1"
                 Padding="10,8" Visibility="Collapsed">
             <TextBlock x:Name="ErrorBannerText" Foreground="{StaticResource Danger}" FontSize="12.5" TextWrapping="Wrap"/>
         </Border>
 
         <!-- Transfer progress -->
-        <StackPanel x:Name="TransferPanel" Grid.Row="6" Margin="0,10,0,0" Visibility="Collapsed">
+        <StackPanel x:Name="TransferPanel" Grid.Row="7" Margin="0,10,0,0" Visibility="Collapsed">
             <ProgressBar x:Name="TransferProgress" Height="4" Minimum="0" Maximum="100"
                          Foreground="{StaticResource Accent}" Background="#EDEFF2" BorderThickness="0"/>
             <TextBlock x:Name="TransferStatus" Style="{StaticResource Subtle}" Margin="0,6,0,0"/>
         </StackPanel>
 
         <!-- Attach files -->
-        <Button Grid.Row="7" x:Name="AttachFilesButton" Style="{StaticResource GhostButton}"
+        <Button Grid.Row="8" x:Name="AttachFilesButton" Style="{StaticResource GhostButton}"
                 Content="Attach files…" HorizontalAlignment="Left" Margin="0,10,0,0"
                 Click="AttachFilesButton_Click"/>
 
         <!-- Send / Cancel -->
-        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button x:Name="CancelButton" Style="{StaticResource GhostButton}" Content="Cancel"
                     Click="CancelButton_Click"/>
             <Button x:Name="SendButton" Style="{StaticResource PrimaryButton}" Content="Send"

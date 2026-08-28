@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private readonly MessageStore _store = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
+    private PinManager _pinManager = null!;
 
     private readonly CollectionViewSource _savedView = new();
 
@@ -36,6 +37,16 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _settings = _settingsStore.Load();
+
+        if (!_settings.FirstRunPromptShown)
+        {
+            var prompt = new Views.FirstRunPinPrompt { Owner = this };
+            prompt.ShowDialog();
+            prompt.Apply(_settings);
+            _settingsStore.Save(_settings);
+        }
+
+        _pinManager = new PinManager(_settings);
 
         InboxList.ItemsSource = _inbox;
 
@@ -60,7 +71,7 @@ public partial class MainWindow : Window
 
     private void StartServer()
     {
-        _server = new PeerServer(() => _settings);
+        _server = new PeerServer(() => _settings, () => _pinManager.CurrentPin);
         _server.MessageReceived += OnMessageReceived;
         _server.TransferProgress += OnTransferProgress;
 
@@ -117,7 +128,7 @@ public partial class MainWindow : Window
 
     private void ShareButton_Click(object sender, RoutedEventArgs e)
     {
-        var popup = new Views.SharePopup(_settings) { Owner = this };
+        var popup = new Views.SharePopup(_settings, _pinManager) { Owner = this };
         if (popup.ShowDialog() == true && popup.SuccessMessage is not null)
             ShowToast(popup.SuccessMessage);
     }
@@ -423,10 +434,19 @@ public partial class MainWindow : Window
         PinEnabledCheck.IsChecked = _settings.PinEnabled;
         if (_settings.PinMode == PinMode.RandomEachLaunch) PinRandomRadio.IsChecked = true;
         else PinPermanentRadio.IsChecked = true;
-        PinBox.Text = _settings.Pin;
+        UpdatePinBoxForMode();
         UpdatePinOptionsVisibility();
 
         _loadingSettings = false;
+    }
+
+    /// <summary>In random mode the PIN box shows this run's generated code, read-only; in permanent mode it's editable.</summary>
+    private void UpdatePinBoxForMode()
+    {
+        var isRandom = PinRandomRadio.IsChecked == true;
+        PinBox.IsReadOnly = isRandom;
+        PinBox.Text = isRandom ? _pinManager.SessionPin : _settings.Pin;
+        PinLabel.Text = isRandom ? "This launch's PIN" : "PIN";
     }
 
     private void SaveSettings()
@@ -492,13 +512,14 @@ public partial class MainWindow : Window
         if (_loadingSettings) return;
         _settings.PinEnabled = PinEnabledCheck.IsChecked == true;
         _settings.PinMode = PinRandomRadio.IsChecked == true ? PinMode.RandomEachLaunch : PinMode.Permanent;
+        UpdatePinBoxForMode();
         UpdatePinOptionsVisibility();
         SaveSettings();
     }
 
     private void PinBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (_loadingSettings) return;
+        if (_loadingSettings || PinBox.IsReadOnly) return;
         _settings.Pin = PinBox.Text.Trim();
         SaveSettings();
     }
