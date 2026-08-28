@@ -22,6 +22,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<Peer> _peers = [];
     private readonly ObservableCollection<InboxMessage> _inbox = [];
     private readonly MessageStore _store = new();
+    private readonly SettingsStore _settingsStore = new();
+    private readonly AppSettings _settings;
 
     private PeerServer? _server;
     private bool _scanning;
@@ -30,6 +32,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        _settings = _settingsStore.Load();
 
         PeerList.ItemsSource = _peers;
         InboxList.ItemsSource = _inbox;
