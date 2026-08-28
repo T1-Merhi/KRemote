@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Windows;
-using System.Windows.Input;
+using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using KRemote.Models;
 using KRemote.Net;
@@ -13,21 +15,21 @@ namespace KRemote;
 
 /// <summary>
 /// Every instance is both ends of the link: it listens for text and files from
-/// other PCs and can send either to one of them. The three panes map to that
-/// directly -- scan results on the left, the composer top right, the inbox
-/// bottom right.
+/// other PCs and can send either to one of them. The window itself is now just
+/// three tabs (Inbox, Saved, Settings) plus a floating Share button that opens
+/// the compose flow in its own popup.
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly ObservableCollection<Peer> _peers = [];
     private readonly ObservableCollection<InboxMessage> _inbox = [];
     private readonly MessageStore _store = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
 
+    private readonly CollectionViewSource _savedView = new();
+
     private PeerServer? _server;
-    private bool _scanning;
-    private bool _sending;
+    private bool _loadingSettings;
 
     public MainWindow()
     {
@@ -35,15 +37,21 @@ public partial class MainWindow : Window
 
         _settings = _settingsStore.Load();
 
-        PeerList.ItemsSource = _peers;
         InboxList.ItemsSource = _inbox;
+
+        _savedView.Source = _inbox;
+        _savedView.Filter += (_, e) => e.Accepted = e.Item is InboxMessage { IsSaved: true };
+        SavedList.ItemsSource = _savedView.View;
 
         // Saved messages are the only ones that survive a restart; they come
         // back newest first, the same order live arrivals are inserted in.
         foreach (var message in _store.Load().OrderByDescending(m => m.ReceivedAt))
             _inbox.Add(message);
 
+        LoadSettingsIntoUi();
+
         UpdateInboxStatus();
+        UpdateSavedStatus();
         UpdateMessageButtons();
         StartServer();
     }
@@ -59,15 +67,11 @@ public partial class MainWindow : Window
         try
         {
             _server.Start();
-            SelfStatus.Text = $"This PC: {Environment.MachineName}  ·  listening on port {Protocol.Port}";
         }
         catch (SocketException)
         {
             // Almost always a second copy of KRemote on this machine. Sending
             // still works, so keep running instead of failing to start.
-            SelfStatus.Text = $"Port {Protocol.Port} is already in use, so this window cannot receive. " +
-                              "Close the other KRemote instance on this PC and restart. Sending still works.";
-            SelfStatus.Foreground = (Brush)FindResource("Danger");
         }
     }
 
@@ -79,6 +83,7 @@ public partial class MainWindow : Window
         {
             _inbox.Insert(0, message);
             UpdateInboxStatus();
+            UpdateSavedStatus();
         });
     }
 
@@ -100,204 +105,87 @@ public partial class MainWindow : Window
         });
     }
 
-    // ---------------------------------------------------------------- scanning
+    // ---------------------------------------------------------------- tabs
 
-    private async void ScanButton_Click(object sender, RoutedEventArgs e)
+    private void RootTabs_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (_scanning) return;
+        if (e.Source != RootTabs) return;
+        ShareButton.Visibility = RootTabs.SelectedIndex == 2 ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        _scanning = true;
-        ScanButton.IsEnabled = false;
-        ScanProgress.Value = 0;
-        ScanProgress.Visibility = Visibility.Visible;
-        ScanStatus.Text = "Scanning the local subnet…";
-        _peers.Clear();
+    // ---------------------------------------------------------------- share popup
 
-        var progress = new Progress<(int done, int total)>(p =>
+    private void ShareButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Populated fully once the Share popup exists; for now this is a stub.
+    }
+
+    /// <summary>Shows a small self-dismissing confirmation, e.g. after a successful send.</summary>
+    public void ShowToast(string message)
+    {
+        var toast = new Border
         {
-            ScanProgress.Maximum = Math.Max(1, p.total);
-            ScanProgress.Value = p.done;
-        });
-
-        try
-        {
-            var found = await PeerScanner.ScanAsync(progress, CancellationToken.None);
-            foreach (var peer in found) _peers.Add(peer);
-
-            ScanStatus.Text = found.Count switch
+            Background = (Brush)FindResource("Card"),
+            BorderBrush = (Brush)FindResource("Line"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 10, 14, 10),
+            Child = new System.Windows.Controls.TextBlock
             {
-                0 => "No other KRemote app answered. Open it on the other PC and allow it through Windows Firewall.",
-                1 => "1 device found.",
-                _ => $"{found.Count} devices found."
-            };
-        }
-        catch (Exception ex)
-        {
-            ScanStatus.Text = $"Scan failed: {ex.Message}";
-        }
-        finally
-        {
-            _scanning = false;
-            ScanButton.IsEnabled = true;
-            ScanProgress.Visibility = Visibility.Collapsed;
-            UpdateTargetLabel();
-        }
-    }
-
-    private void PeerList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-        => UpdateTargetLabel();
-
-    private void UpdateTargetLabel()
-    {
-        TargetLabel.Text = PeerList.SelectedItem is Peer peer
-            ? $"Sending to {peer.MachineName} ({peer.Address})."
-            : "No device selected.";
-    }
-
-    // ---------------------------------------------------------------- sending
-
-    private void TitleBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-    {
-        // WPF has no native watermark, so the hint is a label we hide on input.
-        TitlePlaceholder.Visibility = string.IsNullOrEmpty(TitleBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private async void SubmitButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_sending) return;
-        if (!TryGetTarget(out var peer)) return;
-
-        var text = Editor.Text;
-        if (string.IsNullOrEmpty(text))
-        {
-            SendStatus.Text = "Type some text before submitting.";
-            return;
-        }
-
-        BeginSend($"Sending to {peer!.MachineName}…");
-        try
-        {
-            await PeerSender.SendTextAsync(peer.Address, TitleBox.Text, text, CancellationToken.None);
-            Editor.Clear();
-            TitleBox.Clear();
-            SendStatus.Text = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
-        }
-        catch (Exception ex)
-        {
-            SendStatus.Text = $"Could not send to {peer.MachineName}: {ex.Message}";
-        }
-        finally
-        {
-            EndSend();
-        }
-    }
-
-    private async void SendFileButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_sending) return;
-        if (!TryGetTarget(out var peer)) return;
-
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "Choose a file to send",
-            CheckFileExists = true,
-            Multiselect = false
+                Text = message,
+                FontSize = 12.5,
+                Foreground = (Brush)FindResource("Ink"),
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 320
+            }
         };
-        if (dialog.ShowDialog(this) != true) return;
 
-        var path = dialog.FileName;
-        var fileName = Path.GetFileName(path);
+        var host = new Window
+        {
+            Content = toast,
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = true,
+            Background = null,
+            ShowInTaskbar = false,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            Owner = this,
+            Topmost = true
+        };
 
-        long size;
-        try
+        host.Loaded += (_, _) =>
         {
-            size = new FileInfo(path).Length;
-        }
-        catch (Exception ex)
-        {
-            SendStatus.Text = $"Could not read {fileName}: {ex.Message}";
-            return;
-        }
+            host.Left = Left + Width - host.ActualWidth - 24;
+            host.Top = Top + Height - host.ActualHeight - 24;
+        };
 
-        BeginSend($"Sending {fileName} to {peer!.MachineName}…");
-        TransferPanel.Visibility = Visibility.Visible;
-        TransferProgress.Maximum = Math.Max(1, size);
-        TransferProgress.Value = 0;
-        TransferStatus.Text = $"{fileName}  ·  0%  of {InboxMessage.FormatSize(size)}";
+        host.Show();
 
-        var started = DateTime.Now;
-        var progress = new Progress<long>(sent =>
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        timer.Tick += (_, _) =>
         {
-            TransferProgress.Value = sent;
-            var percent = size > 0 ? sent * 100.0 / size : 100;
-            TransferStatus.Text = $"{fileName}  ·  {percent:0}%  " +
-                                  $"({InboxMessage.FormatSize(sent)} of {InboxMessage.FormatSize(size)})";
-        });
-
-        try
-        {
-            await PeerSender.SendFileAsync(peer.Address, TitleBox.Text, path, progress, CancellationToken.None);
-
-            var seconds = Math.Max(0.001, (DateTime.Now - started).TotalSeconds);
-            TitleBox.Clear();
-            TransferStatus.Text = $"{fileName}  ·  done in {seconds:0.0}s " +
-                                  $"({InboxMessage.FormatSize((long)(size / seconds))}/s)";
-            SendStatus.Text = $"Sent {fileName} to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
-        }
-        catch (Exception ex)
-        {
-            TransferStatus.Text = $"{fileName}  ·  failed";
-            SendStatus.Text = $"Could not send {fileName} to {peer.MachineName}: {ex.Message}";
-        }
-        finally
-        {
-            EndSend();
-        }
+            timer.Stop();
+            host.Close();
+        };
+        timer.Start();
     }
 
-    private bool TryGetTarget(out Peer? peer)
-    {
-        peer = PeerList.SelectedItem as Peer;
-        if (peer is not null) return true;
-
-        SendStatus.Text = "Select a device on the left first.";
-        return false;
-    }
-
-    private void BeginSend(string status)
-    {
-        _sending = true;
-        SubmitButton.IsEnabled = false;
-        SendFileButton.IsEnabled = false;
-        SendStatus.Text = status;
-    }
-
-    private void EndSend()
-    {
-        _sending = false;
-        SubmitButton.IsEnabled = true;
-        SendFileButton.IsEnabled = true;
-    }
-
-    private void Editor_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        // Enter belongs to the editor, so submitting takes the modifier.
-        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-        {
-            e.Handled = true;
-            SubmitButton_Click(this, new RoutedEventArgs());
-        }
-    }
-
-    // ---------------------------------------------------------------- inbox
+    // ---------------------------------------------------------------- inbox / saved
 
     private void InboxList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         MessageView.Text = InboxList.SelectedItem is InboxMessage message ? Describe(message) : "";
         UpdateMessageButtons();
     }
+
+    private void SavedList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        SavedMessageView.Text = SavedList.SelectedItem is InboxMessage message ? Describe(message) : "";
+        UpdateMessageButtons();
+    }
+
+    /// <summary>Whichever list belongs to the currently selected tab.</summary>
+    private System.Windows.Controls.ListBox ActiveList => RootTabs.SelectedIndex == 1 ? SavedList : InboxList;
 
     private static string Describe(InboxMessage message)
     {
@@ -316,11 +204,11 @@ public partial class MainWindow : Window
 
     private void OpenButton_Click(object sender, RoutedEventArgs e)
     {
-        if (InboxList.SelectedItem is not InboxMessage { IsFile: true } message) return;
+        if (ActiveList.SelectedItem is not InboxMessage { IsFile: true } message) return;
 
         if (!File.Exists(message.FilePath))
         {
-            InboxStatus.Text = "That file is no longer at the saved path.";
+            SetStatus("That file is no longer at the saved path.");
             return;
         }
 
@@ -331,13 +219,13 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            InboxStatus.Text = $"Could not open the file: {ex.Message}";
+            SetStatus($"Could not open the file: {ex.Message}");
         }
     }
 
     private void ShowInFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        if (InboxList.SelectedItem is not InboxMessage { IsFile: true } message) return;
+        if (ActiveList.SelectedItem is not InboxMessage { IsFile: true } message) return;
 
         try
         {
@@ -350,28 +238,28 @@ public partial class MainWindow : Window
                 var folder = Path.GetDirectoryName(message.FilePath) ?? PeerServer.DownloadDirectory;
                 Directory.CreateDirectory(folder);
                 Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
-                InboxStatus.Text = "That file has moved; opened its folder instead.";
+                SetStatus("That file has moved; opened its folder instead.");
             }
         }
         catch (Exception ex)
         {
-            InboxStatus.Text = $"Could not open the folder: {ex.Message}";
+            SetStatus($"Could not open the folder: {ex.Message}");
         }
     }
 
     private void CopyButton_Click(object sender, RoutedEventArgs e)
     {
-        if (InboxList.SelectedItem is not InboxMessage message) return;
+        if (ActiveList.SelectedItem is not InboxMessage message) return;
 
         try
         {
             // For a file the useful thing to copy is where it landed.
             Clipboard.SetText(message.IsFile ? message.FilePath : message.Text);
-            InboxStatus.Text = message.IsFile ? "File path copied to clipboard." : "Copied to clipboard.";
+            SetStatus(message.IsFile ? "File path copied to clipboard." : "Copied to clipboard.");
         }
         catch (Exception ex)
         {
-            InboxStatus.Text = $"Copy failed: {ex.Message}";
+            SetStatus($"Copy failed: {ex.Message}");
         }
     }
 
@@ -380,24 +268,45 @@ public partial class MainWindow : Window
         if (InboxList.SelectedItem is not InboxMessage message) return;
 
         message.IsSaved = true;
-        if (PersistSaved()) UpdateInboxStatus();
+        _savedView.View.Refresh();
+        if (PersistSaved())
+        {
+            UpdateInboxStatus();
+            UpdateSavedStatus();
+        }
+        UpdateMessageButtons();
+    }
+
+    private void UnsaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SavedList.SelectedItem is not InboxMessage message) return;
+
+        message.IsSaved = false;
+        _savedView.View.Refresh();
+        if (PersistSaved())
+        {
+            UpdateInboxStatus();
+            UpdateSavedStatus();
+        }
         UpdateMessageButtons();
     }
 
     private void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (InboxList.SelectedItem is not InboxMessage message) return;
+        if (ActiveList.SelectedItem is not InboxMessage message) return;
 
         var wasSaved = message.IsSaved;
         var wasFile = message.IsFile;
         _inbox.Remove(message);
         MessageView.Text = "";
+        SavedMessageView.Text = "";
 
         if (!wasSaved || PersistSaved())
         {
             UpdateInboxStatus();
+            UpdateSavedStatus();
             // Removing the row must not look like it deleted the download.
-            if (wasFile) InboxStatus.Text = "Removed from the inbox. The file itself is still on disk.";
+            if (wasFile) SetStatus("Removed from the inbox. The file itself is still on disk.");
         }
 
         UpdateMessageButtons();
@@ -417,22 +326,37 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            InboxStatus.Text = $"Could not write {_store.Location}: {ex.Message}";
+            SetStatus($"Could not write {_store.Location}: {ex.Message}");
             return false;
         }
     }
 
+    private void SetStatus(string text)
+    {
+        if (RootTabs.SelectedIndex == 1) SavedStatus.Text = text;
+        else InboxStatus.Text = text;
+    }
+
     private void UpdateMessageButtons()
     {
-        var message = InboxList.SelectedItem as InboxMessage;
-        var isFile = message is { IsFile: true };
+        var inboxMessage = InboxList.SelectedItem as InboxMessage;
+        var inboxIsFile = inboxMessage is { IsFile: true };
 
-        CopyButton.IsEnabled = message is not null;
-        DeleteButton.IsEnabled = message is not null;
-        SaveButton.IsEnabled = message is { IsSaved: false };
-        SaveButton.Content = message is { IsSaved: true } ? "Saved" : "Save";
-        OpenButton.IsEnabled = isFile;
-        ShowInFolderButton.IsEnabled = isFile;
+        CopyButton.IsEnabled = inboxMessage is not null;
+        DeleteButton.IsEnabled = inboxMessage is not null;
+        SaveButton.IsEnabled = inboxMessage is { IsSaved: false };
+        SaveButton.Content = inboxMessage is { IsSaved: true } ? "Saved" : "Save";
+        OpenButton.IsEnabled = inboxIsFile;
+        ShowInFolderButton.IsEnabled = inboxIsFile;
+
+        var savedMessage = SavedList.SelectedItem as InboxMessage;
+        var savedIsFile = savedMessage is { IsFile: true };
+
+        SavedCopyButton.IsEnabled = savedMessage is not null;
+        SavedDeleteButton.IsEnabled = savedMessage is not null;
+        UnsaveButton.IsEnabled = savedMessage is not null;
+        SavedOpenButton.IsEnabled = savedIsFile;
+        SavedShowInFolderButton.IsEnabled = savedIsFile;
     }
 
     private void UpdateInboxStatus()
@@ -449,6 +373,133 @@ public partial class MainWindow : Window
         if (files > 0) parts.Add($"{files} file{(files == 1 ? "" : "s")}");
         parts.Add($"{saved} saved to disk");
         InboxStatus.Text = string.Join("  ·  ", parts);
+    }
+
+    private void UpdateSavedStatus()
+    {
+        var saved = _inbox.Count(m => m.IsSaved);
+        SavedStatus.Text = saved == 0 ? "Nothing saved yet." : $"{saved} saved message{(saved == 1 ? "" : "s")}.";
+    }
+
+    // ---------------------------------------------------------------- settings
+
+    private void LoadSettingsIntoUi()
+    {
+        _loadingSettings = true;
+
+        DisplayNameBox.Text = _settings.DisplayName;
+        DownloadsFolderBox.Text = string.IsNullOrWhiteSpace(_settings.DownloadsFolder)
+            ? PeerServer.DownloadDirectory
+            : _settings.DownloadsFolder;
+
+        if (_settings.MultiFileMode == MultiFileSendMode.Grouped) GroupedModeRadio.IsChecked = true;
+        else ZipModeRadio.IsChecked = true;
+        GroupTimeoutBox.Text = _settings.GroupTimeoutSeconds.ToString();
+
+        NotifyToastCheck.IsChecked = _settings.NotifyToast;
+        NotifySoundCheck.IsChecked = _settings.NotifySound;
+        NotifyFlashCheck.IsChecked = _settings.NotifyTaskbarFlash;
+        NotifyBadgeCheck.IsChecked = _settings.NotifyUnreadBadge;
+
+        PinEnabledCheck.IsChecked = _settings.PinEnabled;
+        if (_settings.PinMode == PinMode.RandomEachLaunch) PinRandomRadio.IsChecked = true;
+        else PinPermanentRadio.IsChecked = true;
+        PinBox.Text = _settings.Pin;
+        UpdatePinOptionsVisibility();
+
+        _loadingSettings = false;
+    }
+
+    private void SaveSettings()
+    {
+        if (_loadingSettings) return;
+        try { _settingsStore.Save(_settings); }
+        catch (Exception ex) { SetStatus($"Could not save settings: {ex.Message}"); }
+    }
+
+    private void DisplayNameBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        _settings.DisplayName = DisplayNameBox.Text.Trim();
+        SaveSettings();
+    }
+
+    private void BrowseDownloadsFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Choose a downloads folder",
+            InitialDirectory = DownloadsFolderBox.Text
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        _settings.DownloadsFolder = dialog.FolderName;
+        DownloadsFolderBox.Text = dialog.FolderName;
+        SaveSettings();
+    }
+
+    private void ResetDownloadsFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.DownloadsFolder = "";
+        DownloadsFolderBox.Text = PeerServer.DownloadDirectory;
+        SaveSettings();
+    }
+
+    private void MultiFileMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        _settings.MultiFileMode = GroupedModeRadio.IsChecked == true ? MultiFileSendMode.Grouped : MultiFileSendMode.Zip;
+        SaveSettings();
+    }
+
+    private void GroupTimeoutBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (int.TryParse(GroupTimeoutBox.Text, out var seconds) && seconds > 0)
+            _settings.GroupTimeoutSeconds = seconds;
+        SaveSettings();
+    }
+
+    private void NotificationSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        _settings.NotifyToast = NotifyToastCheck.IsChecked == true;
+        _settings.NotifySound = NotifySoundCheck.IsChecked == true;
+        _settings.NotifyTaskbarFlash = NotifyFlashCheck.IsChecked == true;
+        _settings.NotifyUnreadBadge = NotifyBadgeCheck.IsChecked == true;
+        SaveSettings();
+    }
+
+    private void PinSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        _settings.PinEnabled = PinEnabledCheck.IsChecked == true;
+        _settings.PinMode = PinRandomRadio.IsChecked == true ? PinMode.RandomEachLaunch : PinMode.Permanent;
+        UpdatePinOptionsVisibility();
+        SaveSettings();
+    }
+
+    private void PinBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        _settings.Pin = PinBox.Text.Trim();
+        SaveSettings();
+    }
+
+    private void CopyPinButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(PinBox.Text);
+            SetStatus("PIN copied to clipboard.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Copy failed: {ex.Message}");
+        }
+    }
+
+    private void UpdatePinOptionsVisibility()
+    {
+        PinOptionsPanel.Visibility = PinEnabledCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     protected override void OnClosed(EventArgs e)
