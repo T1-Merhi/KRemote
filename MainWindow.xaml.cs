@@ -9,6 +9,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using KRemote.Models;
 using KRemote.Net;
+using KRemote.Notifications;
 using KRemote.Storage;
 
 namespace KRemote;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private readonly SettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
     private PinManager _pinManager = null!;
+    private NotificationService _notifications = null!;
 
     private readonly CollectionViewSource _savedView = new();
 
@@ -47,6 +49,7 @@ public partial class MainWindow : Window
         }
 
         _pinManager = new PinManager(_settings);
+        _notifications = new NotificationService(() => _settings, this);
 
         InboxList.ItemsSource = _inbox;
 
@@ -56,14 +59,19 @@ public partial class MainWindow : Window
 
         // Saved messages are the only ones that survive a restart; they come
         // back newest first, the same order live arrivals are inserted in.
+        // They are history, not new arrivals, so they start out already read.
         foreach (var message in _store.Load().OrderByDescending(m => m.ReceivedAt))
+        {
+            message.IsUnread = false;
             _inbox.Add(message);
+        }
 
         LoadSettingsIntoUi();
 
         UpdateInboxStatus();
         UpdateSavedStatus();
         UpdateMessageButtons();
+        UpdateUnreadBadge();
         StartServer();
     }
 
@@ -89,12 +97,15 @@ public partial class MainWindow : Window
     private void OnMessageReceived(InboxMessage message)
     {
         // Raised on a socket thread; the inbox is a UI-bound collection.
-        // Arrival is deliberately silent: no popup, no focus steal.
+        // The in-app UI itself never steals focus or pops up -- Settings'
+        // notification toggles are what a user opts into for an external nudge.
         Dispatcher.Invoke(() =>
         {
             _inbox.Insert(0, message);
             UpdateInboxStatus();
             UpdateSavedStatus();
+            UpdateUnreadBadge();
+            _notifications.NotifyMessageReceived(message);
         });
     }
 
@@ -188,13 +199,29 @@ public partial class MainWindow : Window
     private void InboxList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         MessageView.Text = InboxList.SelectedItem is InboxMessage message ? Describe(message) : "";
+        MarkRead(InboxList.SelectedItem as InboxMessage);
         UpdateMessageButtons();
     }
 
     private void SavedList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         SavedMessageView.Text = SavedList.SelectedItem is InboxMessage message ? Describe(message) : "";
+        MarkRead(SavedList.SelectedItem as InboxMessage);
         UpdateMessageButtons();
+    }
+
+    private void MarkRead(InboxMessage? message)
+    {
+        if (message is not { IsUnread: true }) return;
+        message.IsUnread = false;
+        UpdateUnreadBadge();
+    }
+
+    private void UpdateUnreadBadge()
+    {
+        var count = _settings.NotifyUnreadBadge ? _inbox.Count(m => m.IsUnread) : 0;
+        UnreadBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UnreadBadgeText.Text = count > 99 ? "99+" : count.ToString();
     }
 
     /// <summary>Whichever list belongs to the currently selected tab.</summary>
@@ -504,6 +531,7 @@ public partial class MainWindow : Window
         _settings.NotifySound = NotifySoundCheck.IsChecked == true;
         _settings.NotifyTaskbarFlash = NotifyFlashCheck.IsChecked == true;
         _settings.NotifyUnreadBadge = NotifyBadgeCheck.IsChecked == true;
+        UpdateUnreadBadge();
         SaveSettings();
     }
 

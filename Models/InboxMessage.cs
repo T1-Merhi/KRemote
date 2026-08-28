@@ -65,6 +65,10 @@ public sealed class InboxMessage : INotifyPropertyChanged
         }
     }
 
+    /// <summary>True until this row is selected/clicked in the inbox. Session-only, never persisted.</summary>
+    [JsonIgnore]
+    public bool IsUnread { get; set; } = true;
+
     [JsonIgnore]
     public bool IsFile => Kind == MessageKind.File;
 
