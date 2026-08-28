@@ -119,7 +119,7 @@ public sealed class PeerServer : IDisposable
                         MessageReceived?.Invoke(new InboxMessage
                         {
                             Kind = MessageKind.Text,
-                            From = string.IsNullOrWhiteSpace(frame.Name) ? remote : frame.Name!,
+                            From = SenderName(frame, remote),
                             FromAddress = remote,
                             Title = frame.Title ?? "",
                             ReceivedAt = DateTime.Now,
@@ -150,13 +150,20 @@ public sealed class PeerServer : IDisposable
         return !string.IsNullOrEmpty(frame.Pin) && frame.Pin == _currentPin();
     }
 
+    private static string SenderName(Frame frame, string remote)
+    {
+        if (!string.IsNullOrWhiteSpace(frame.DisplayName)) return frame.DisplayName!.Trim();
+        if (!string.IsNullOrWhiteSpace(frame.Name)) return frame.Name!;
+        return remote;
+    }
+
     private async Task ReceiveFileAsync(
         NetworkStream stream, Frame header, string remote, CancellationTokenSource timeout)
     {
         var attachment = await ReceiveOneFileAsync(stream, header, timeout);
         if (attachment is null) return;
 
-        var from = string.IsNullOrWhiteSpace(header.Name) ? remote : header.Name!;
+        var from = SenderName(header, remote);
 
         if (header.GroupId is null)
         {

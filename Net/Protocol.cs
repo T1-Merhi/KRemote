@@ -51,15 +51,16 @@ public sealed class Frame
     public static Frame Refused(string reason) => new() { Type = "refused", Error = reason };
     public static Frame VerifyPin(string pin) => new() { Type = "verifypin", Pin = pin };
 
-    public static Frame TextMessage(string name, string? title, string text, string? pin = null) =>
-        new() { Type = "text", Name = name, Title = Blank(title), Text = text, Pin = pin };
+    public static Frame TextMessage(string name, string? displayName, string? title, string text, string? pin = null) =>
+        new() { Type = "text", Name = name, DisplayName = Blank(displayName), Title = Blank(title), Text = text, Pin = pin };
 
     public static Frame FileHeader(
-        string name, string? title, string fileName, long size,
+        string name, string? displayName, string? title, string fileName, long size,
         string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null, string? pin = null) =>
         new()
         {
-            Type = "file", Name = name, Title = Blank(title), FileName = fileName, Size = size,
+            Type = "file", Name = name, DisplayName = Blank(displayName), Title = Blank(title),
+            FileName = fileName, Size = size,
             Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex, Pin = pin
         };
 

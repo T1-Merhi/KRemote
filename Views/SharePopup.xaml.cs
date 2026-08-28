@@ -252,7 +252,7 @@ public partial class SharePopup : Window
         {
             if (!hasAttachments)
             {
-                await PeerSender.SendTextAsync(peer.Address, title, text, CancellationToken.None, pin);
+                await PeerSender.SendTextAsync(peer.Address, _settings.DisplayName, title, text, CancellationToken.None, pin);
             }
             else
             {
@@ -328,7 +328,7 @@ public partial class SharePopup : Window
             }
         });
 
-        await PeerSender.SendFilesAsync(peer.Address, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None, pin);
+        await PeerSender.SendFilesAsync(peer.Address, _settings.DisplayName, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None, pin);
 
         var elapsed = Math.Max(0.001, (DateTime.UtcNow - started).TotalSeconds);
         var sentTotal = bytesOnWire > 0 ? bytesOnWire : grandTotal;

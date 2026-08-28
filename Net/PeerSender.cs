@@ -8,7 +8,8 @@ public static class PeerSender
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
 
-    public static async Task SendTextAsync(string address, string? title, string text, CancellationToken ct, string? pin = null)
+    public static async Task SendTextAsync(
+        string address, string? displayName, string? title, string text, CancellationToken ct, string? pin = null)
     {
         using var client = await ConnectAsync(address, ct);
         using var stream = client.GetStream();
@@ -16,18 +17,20 @@ public static class PeerSender
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var frame = Frame.TextMessage(Environment.MachineName, title, text, pin);
+        var frame = Frame.TextMessage(Environment.MachineName, displayName, title, text, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(frame), timeout.Token);
 
         await ExpectAsync(stream, "ok", timeout);
     }
 
     public static Task SendFileAsync(
-        string address, string? title, string filePath, IProgress<long>? progress, CancellationToken ct, string? pin = null) =>
-        SendFileAsync(address, title, null, filePath, progress, ct, null, null, null, pin);
+        string address, string? displayName, string? title, string filePath,
+        IProgress<long>? progress, CancellationToken ct, string? pin = null) =>
+        SendFileAsync(address, displayName, title, null, filePath, progress, ct, null, null, null, pin);
 
     private static async Task SendFileAsync(
-        string address, string? title, string? text, string filePath, IProgress<long>? progress, CancellationToken ct,
+        string address, string? displayName, string? title, string? text, string filePath,
+        IProgress<long>? progress, CancellationToken ct,
         string? groupId, int? groupCount, int? groupIndex, string? pin)
     {
         await using var file = new FileStream(
@@ -43,7 +46,7 @@ public static class PeerSender
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var header = Frame.FileHeader(Environment.MachineName, title, fileName, size, text, groupId, groupCount, groupIndex, pin);
+        var header = Frame.FileHeader(Environment.MachineName, displayName, title, fileName, size, text, groupId, groupCount, groupIndex, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(header), timeout.Token);
 
         await ExpectAsync(stream, "ready", timeout);
@@ -70,13 +73,14 @@ public static class PeerSender
     }
 
     public static async Task SendFilesAsync(
-        string address, string? title, string? text, IReadOnlyList<string> filePaths, MultiFileSendMode mode,
+        string address, string? displayName, string? title, string? text,
+        IReadOnlyList<string> filePaths, MultiFileSendMode mode,
         IProgress<(int fileIndex, int fileCount, long sent, long total)>? progress, CancellationToken ct, string? pin = null)
     {
         if (filePaths.Count == 1)
         {
             var single = new Progress<long>(sent => progress?.Report((0, 1, sent, new FileInfo(filePaths[0]).Length)));
-            await SendFileAsync(address, title, text, filePaths[0], single, ct, null, null, null, pin);
+            await SendFileAsync(address, displayName, title, text, filePaths[0], single, ct, null, null, null, pin);
             return;
         }
 
@@ -87,7 +91,7 @@ public static class PeerSender
             {
                 var size = new FileInfo(zipPath).Length;
                 var zipProgress = new Progress<long>(sent => progress?.Report((0, 1, sent, size)));
-                await SendFileAsync(address, title, text, zipPath, zipProgress, ct, null, null, null, pin);
+                await SendFileAsync(address, displayName, title, text, zipPath, zipProgress, ct, null, null, null, pin);
             }
             finally
             {
@@ -104,7 +108,7 @@ public static class PeerSender
                 progress?.Report((index, filePaths.Count, sent, new FileInfo(filePaths[index]).Length)));
 
             await SendFileAsync(
-                address, index == 0 ? title : null, index == 0 ? text : null, filePaths[index],
+                address, displayName, index == 0 ? title : null, index == 0 ? text : null, filePaths[index],
                 fileProgress, ct, groupId, filePaths.Count, index, pin);
         }
     }
