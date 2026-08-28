@@ -18,13 +18,13 @@ public sealed class MessageStore
 
     public string Location => Path.Combine(_paths.AppDataDirectory, "saved-messages.json");
 
-    public List<InboxMessage> Load()
+    public List<SessionMessage> Load()
     {
         try
         {
             if (!File.Exists(Location)) return [];
             var json = File.ReadAllText(Location);
-            var messages = JsonSerializer.Deserialize<List<InboxMessage>>(json, Options) ?? [];
+            var messages = JsonSerializer.Deserialize<List<SessionMessage>>(json, Options) ?? [];
             foreach (var message in messages) message.IsSaved = true;
             return messages;
         }
@@ -34,7 +34,7 @@ public sealed class MessageStore
         }
     }
 
-    public void Save(IEnumerable<InboxMessage> saved)
+    public void Save(IEnumerable<SessionMessage> saved)
     {
         Directory.CreateDirectory(_paths.AppDataDirectory);
         var json = JsonSerializer.Serialize(saved.ToList(), Options);

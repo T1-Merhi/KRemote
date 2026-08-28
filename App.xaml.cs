@@ -4,14 +4,16 @@ namespace KRemote;
 
 public partial class App : Application
 {
-    private readonly InboxService _inbox;
+    private readonly SessionService _session;
 
-    public App(InboxService inbox)
+    public App(SessionService session)
     {
         InitializeComponent();
 
-        _inbox = inbox;
-        _inbox.LoadSaved();
+        UserAppTheme = AppTheme.Light;
+
+        _session = session;
+        _session.LoadSaved();
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
@@ -26,11 +28,19 @@ public partial class App : Application
         };
 
 #if ANDROID
-        window.Resumed += (_, _) => _inbox.StartListening();
-        window.Stopped += (_, _) => _inbox.StopListening();
+        window.Resumed += (_, _) => _session.StartListening();
+        window.Stopped += (_, _) => _session.StopListening();
 #else
-        _inbox.StartListening();
-        window.Destroying += (_, _) => _inbox.StopListening();
+        _session.StartListening();
+        window.Destroying += (_, _) => _session.StopListening();
+#endif
+
+#if WINDOWS
+        window.HandlerChanged += (_, _) =>
+        {
+            if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window native)
+                Platforms.Windows.TitleBarStyling.Apply(native);
+        };
 #endif
 
         return window;

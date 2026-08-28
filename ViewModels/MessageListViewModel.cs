@@ -9,11 +9,11 @@ namespace KRemote.ViewModels;
 
 public abstract partial class MessageListViewModel : ObservableObject
 {
-    protected readonly InboxService Inbox;
+    protected readonly SessionService Session;
     protected readonly IFileActions Files;
 
     [ObservableProperty]
-    private InboxMessage? selected;
+    private SessionMessage? selected;
 
     [ObservableProperty]
     private string status = "";
@@ -24,16 +24,16 @@ public abstract partial class MessageListViewModel : ObservableObject
     [ObservableProperty]
     private bool isWide = true;
 
-    protected MessageListViewModel(InboxService inbox, IFileActions files)
+    protected MessageListViewModel(SessionService messages, IFileActions files)
     {
-        Inbox = inbox;
+        Session = messages;
         Files = files;
 
-        Inbox.Changed += Refresh;
-        Inbox.Messages.CollectionChanged += (_, _) => Refresh();
+        Session.Changed += Refresh;
+        Session.Messages.CollectionChanged += (_, _) => Refresh();
     }
 
-    public ObservableCollection<InboxMessage> Items { get; } = [];
+    public ObservableCollection<SessionMessage> Items { get; } = [];
 
     public bool SupportsReveal => Files.SupportsReveal;
 
@@ -65,13 +65,13 @@ public abstract partial class MessageListViewModel : ObservableObject
     [RelayCommand]
     private void Back() => Selected = null;
 
-    protected abstract bool Accepts(InboxMessage message);
+    protected abstract bool Accepts(SessionMessage message);
 
     protected abstract string DescribeCounts();
 
     public virtual void Refresh()
     {
-        var wanted = Inbox.Messages.Where(Accepts).ToList();
+        var wanted = Session.Messages.Where(Accepts).ToList();
 
         for (var i = Items.Count - 1; i >= 0; i--)
         {
@@ -91,14 +91,14 @@ public abstract partial class MessageListViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEmpty));
     }
 
-    partial void OnSelectedChanged(InboxMessage? value)
+    partial void OnSelectedChanged(SessionMessage? value)
     {
         Detail = value is null ? "" : Describe(value);
 
         if (value is { IsUnread: true })
         {
             value.IsUnread = false;
-            Inbox.NotifyChanged();
+            Session.NotifyChanged();
         }
 
         OnPropertyChanged(nameof(HasSelection));
@@ -156,13 +156,13 @@ public abstract partial class MessageListViewModel : ObservableObject
         if (Selected is not { } message) return;
 
         var wasFile = message.IsFile;
-        Inbox.Remove(message);
+        Session.Remove(message);
         Selected = null;
 
-        if (wasFile) Status = "Removed from the inbox. The file itself is still on disk.";
+        if (wasFile) Status = "Removed from the active session. The file itself is still on disk.";
     }
 
-    protected static string Describe(InboxMessage message)
+    protected static string Describe(SessionMessage message)
     {
         if (!message.IsFile) return message.Text;
 
@@ -174,12 +174,12 @@ public abstract partial class MessageListViewModel : ObservableObject
         {
             lines.Add($"{message.Attachments.Count} files:");
             foreach (var attachment in message.Attachments)
-                lines.Add($"  {attachment.FileName}  ({InboxMessage.FormatSize(attachment.FileSize)})");
+                lines.Add($"  {attachment.FileName}  ({SessionMessage.FormatSize(attachment.FileSize)})");
         }
         else
         {
             lines.Add(message.FileName);
-            lines.Add($"{InboxMessage.FormatSize(message.FileSize)}  ({message.FileSize:N0} bytes)");
+            lines.Add($"{SessionMessage.FormatSize(message.FileSize)}  ({message.FileSize:N0} bytes)");
         }
 
         lines.Add($"From {message.From} ({message.FromAddress}) at {message.ReceivedAt:MMM d, yyyy HH:mm:ss}");

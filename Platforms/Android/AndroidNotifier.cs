@@ -25,7 +25,7 @@ public sealed class AndroidNotifier : INotifier
 
     public bool SupportsWindowFlash => false;
 
-    public void NotifyMessageReceived(InboxMessage message)
+    public void NotifyMessageReceived(SessionMessage message)
     {
         if (!_settings().NotifyToast) return;
 

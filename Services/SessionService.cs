@@ -7,7 +7,7 @@ using KRemote.Storage;
 
 namespace KRemote.Services;
 
-public sealed class InboxService : IDisposable
+public sealed class SessionService : IDisposable
 {
     private readonly MessageStore _store;
     private readonly SettingsService _settings;
@@ -19,7 +19,7 @@ public sealed class InboxService : IDisposable
     private PeerBeacon? _beacon;
     private bool _loaded;
 
-    public InboxService(
+    public SessionService(
         MessageStore store,
         SettingsService settings,
         INotifier notifier,
@@ -33,7 +33,7 @@ public sealed class InboxService : IDisposable
         _pins = pins;
     }
 
-    public ObservableCollection<InboxMessage> Messages { get; } = [];
+    public ObservableCollection<SessionMessage> Messages { get; } = [];
 
     public string StoreLocation => _store.Location;
 
@@ -53,6 +53,7 @@ public sealed class InboxService : IDisposable
         foreach (var message in _store.Load().OrderByDescending(m => m.ReceivedAt))
         {
             message.IsUnread = false;
+            message.IsRestored = true;
             Messages.Add(message);
         }
 
@@ -109,7 +110,7 @@ public sealed class InboxService : IDisposable
         Changed?.Invoke();
     }
 
-    private void OnMessageReceived(InboxMessage message)
+    private void OnMessageReceived(SessionMessage message)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -124,7 +125,7 @@ public sealed class InboxService : IDisposable
         MainThread.BeginInvokeOnMainThread(() => TransferProgress?.Invoke(fileName, received, total));
     }
 
-    public void Remove(InboxMessage message)
+    public void Remove(SessionMessage message)
     {
         var wasSaved = message.IsSaved;
         Messages.Remove(message);
@@ -132,9 +133,10 @@ public sealed class InboxService : IDisposable
         Changed?.Invoke();
     }
 
-    public void SetSaved(InboxMessage message, bool saved)
+    public void SetSaved(SessionMessage message, bool saved)
     {
         message.IsSaved = saved;
+        if (!saved) message.IsRestored = false;
         PersistSaved();
         Changed?.Invoke();
     }

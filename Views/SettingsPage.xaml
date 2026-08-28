@@ -4,12 +4,19 @@
              xmlns:vm="clr-namespace:KRemote.ViewModels"
              x:Class="KRemote.Views.SettingsPage"
              x:DataType="vm:SettingsViewModel"
+             Shell.NavBarIsVisible="False"
              Title="Settings">
 
     <ScrollView>
-        <VerticalStackLayout Padding="14" Spacing="12">
+        <FlexLayout x:Name="SettingsFlex"
+                    Padding="14"
+                    Wrap="Wrap"
+                    Direction="Row"
+                    JustifyContent="Start"
+                    AlignItems="Start"
+                    AlignContent="Start">
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource SettingsCard}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="This device" Style="{StaticResource Title}" />
 
@@ -22,7 +29,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}" IsVisible="{Binding SupportsFolderChoice}">
+            <Border Style="{StaticResource SettingsCard}" IsVisible="{Binding SupportsFolderChoice}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Received files" Style="{StaticResource Title}" />
 
@@ -43,7 +50,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource SettingsCard}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Sending several files" Style="{StaticResource Title}" />
 
@@ -71,7 +78,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource SettingsCard}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Notifications" Style="{StaticResource Title}" />
 
@@ -97,7 +104,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource SettingsCard}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="PIN protection" Style="{StaticResource Title}" />
 
@@ -130,7 +137,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource SettingsCard}">
                 <VerticalStackLayout Spacing="4">
                     <Label Text="Where things are kept" Style="{StaticResource Title}" />
                     <Label Text="{Binding SettingsLocation}" Style="{StaticResource Subtle}" />
@@ -138,9 +145,12 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Label Text="{Binding Status}" Style="{StaticResource Subtle}" />
+            <Label Text="{Binding Status}"
+                   Style="{StaticResource Subtle}"
+                   Margin="6,4"
+                   FlexLayout.Basis="100%" />
 
-        </VerticalStackLayout>
+        </FlexLayout>
     </ScrollView>
 
 </ContentPage>

@@ -9,7 +9,7 @@ namespace KRemote.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsService _settings;
-    private readonly InboxService _inbox;
+    private readonly SessionService _session;
     private readonly INotifier _notifier;
     private readonly IFolderPicker _folders;
 
@@ -18,12 +18,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(
         SettingsService settings,
-        InboxService inbox,
+        SessionService session,
         INotifier notifier,
         IFolderPicker folders)
     {
         _settings = settings;
-        _inbox = inbox;
+        _session = session;
         _notifier = notifier;
         _folders = folders;
     }
@@ -38,7 +38,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string SettingsLocation => _settings.Location;
 
-    public string MessagesLocation => _inbox.StoreLocation;
+    public string MessagesLocation => _session.StoreLocation;
 
     public string DisplayName
     {
@@ -127,7 +127,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool NotifyUnreadBadge
     {
         get => Current.NotifyUnreadBadge;
-        set { Current.NotifyUnreadBadge = value; OnPropertyChanged(); Persist(); _inbox.NotifyChanged(); }
+        set { Current.NotifyUnreadBadge = value; OnPropertyChanged(); Persist(); _session.NotifyChanged(); }
     }
 
     public bool PinEnabled

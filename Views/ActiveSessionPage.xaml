@@ -2,19 +2,15 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:KRemote.ViewModels"
-             x:Class="KRemote.Views.InboxPage"
-             x:DataType="vm:InboxViewModel"
-             Title="Inbox">
+             x:Class="KRemote.Views.ActiveSessionPage"
+             x:DataType="vm:ActiveSessionViewModel"
+             Shell.NavBarIsVisible="False"
+             Title="Active Session">
 
     <Grid RowDefinitions="Auto,*,Auto" Padding="14" RowSpacing="10">
 
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
-            <Label Grid.Column="0"
-                   Text="Inbox"
-                   Style="{StaticResource Title}"
-                   VerticalOptions="Center" />
-
-            <Border Grid.Column="1"
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <Border Grid.Column="0"
                     BackgroundColor="{StaticResource Danger}"
                     StrokeThickness="0"
                     Padding="6,1"
@@ -26,7 +22,7 @@
                        TextColor="White" />
             </Border>
 
-            <Button Grid.Column="3"
+            <Button Grid.Column="2"
                     Text="New message"
                     Style="{StaticResource PrimaryButton}"
                     Command="{Binding ComposeCommand}" />

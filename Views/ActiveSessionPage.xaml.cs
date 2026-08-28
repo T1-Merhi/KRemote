@@ -4,13 +4,13 @@ using KRemote.ViewModels;
 
 namespace KRemote.Views;
 
-public partial class InboxPage : ContentPage
+public partial class ActiveSessionPage : ContentPage
 {
-    private readonly InboxViewModel _model;
+    private readonly ActiveSessionViewModel _model;
     private readonly SettingsService _settings;
     private bool _firstRunChecked;
 
-    public InboxPage(InboxViewModel model, SettingsService settings)
+    public ActiveSessionPage(ActiveSessionViewModel model, SettingsService settings)
     {
         InitializeComponent();
 

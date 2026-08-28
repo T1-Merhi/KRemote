@@ -7,17 +7,17 @@ namespace KRemote.ViewModels;
 
 public sealed partial class SavedViewModel : MessageListViewModel
 {
-    public SavedViewModel(InboxService inbox, IFileActions files)
-        : base(inbox, files)
+    public SavedViewModel(SessionService messages, IFileActions files)
+        : base(messages, files)
     {
         Refresh();
     }
 
-    protected override bool Accepts(InboxMessage message) => message.IsSaved;
+    protected override bool Accepts(SessionMessage message) => message.IsSaved;
 
     protected override string DescribeCounts()
     {
-        var saved = Inbox.Messages.Count(m => m.IsSaved);
+        var saved = Session.Messages.Count(m => m.IsSaved);
         return saved == 0
             ? "Nothing saved yet."
             : $"{saved} saved message{(saved == 1 ? "" : "s")}.";
@@ -28,7 +28,7 @@ public sealed partial class SavedViewModel : MessageListViewModel
     {
         if (Selected is not { } message) return;
 
-        Inbox.SetSaved(message, false);
+        Session.SetSaved(message, false);
         Selected = null;
     }
 }

@@ -7,9 +7,9 @@
        FlyoutBehavior="Disabled">
 
     <TabBar>
-        <ShellContent Title="Inbox"
-                      Route="inbox"
-                      ContentTemplate="{DataTemplate views:InboxPage}" />
+        <ShellContent Title="Active Session"
+                      Route="session"
+                      ContentTemplate="{DataTemplate views:ActiveSessionPage}" />
 
         <ShellContent Title="Saved"
                       Route="saved"

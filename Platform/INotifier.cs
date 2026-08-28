@@ -8,5 +8,5 @@ public interface INotifier
 
     bool SupportsWindowFlash { get; }
 
-    void NotifyMessageReceived(InboxMessage message);
+    void NotifyMessageReceived(SessionMessage message);
 }

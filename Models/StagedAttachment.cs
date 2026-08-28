@@ -6,5 +6,5 @@ public sealed class StagedAttachment
     public required string FileName { get; init; }
     public required long Size { get; init; }
 
-    public string SizeText => InboxMessage.FormatSize(Size);
+    public string SizeText => SessionMessage.FormatSize(Size);
 }

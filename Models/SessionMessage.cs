@@ -9,7 +9,7 @@ public enum MessageKind
     File
 }
 
-public sealed class InboxMessage : INotifyPropertyChanged
+public sealed class SessionMessage : INotifyPropertyChanged
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string From { get; set; } = "";
@@ -29,7 +29,7 @@ public sealed class InboxMessage : INotifyPropertyChanged
 
     public long FileSize { get; set; }
 
-    public List<InboxAttachment> Attachments { get; set; } = [];
+    public List<SessionAttachment> Attachments { get; set; } = [];
 
     [JsonIgnore]
     public bool IsGroup => Attachments.Count > 1;
@@ -60,6 +60,9 @@ public sealed class InboxMessage : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsUnread));
         }
     }
+
+    [JsonIgnore]
+    public bool IsRestored { get; set; }
 
     [JsonIgnore]
     public bool IsFile => Kind == MessageKind.File;

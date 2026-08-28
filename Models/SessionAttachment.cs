@@ -1,6 +1,6 @@
 namespace KRemote.Models;
 
-public sealed class InboxAttachment
+public sealed class SessionAttachment
 {
     public string FileName { get; set; } = "";
     public string FilePath { get; set; } = "";

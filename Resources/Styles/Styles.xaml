@@ -7,6 +7,18 @@
         <Setter Property="Padding" Value="0" />
     </Style>
 
+    <Style TargetType="Shell" ApplyToDerivedTypes="True">
+        <Setter Property="Shell.BackgroundColor" Value="{StaticResource ChromeTop}" />
+        <Setter Property="Shell.ForegroundColor" Value="{StaticResource Ink}" />
+        <Setter Property="Shell.TitleColor" Value="{StaticResource Ink}" />
+        <Setter Property="Shell.DisabledColor" Value="{StaticResource Muted}" />
+        <Setter Property="Shell.UnselectedColor" Value="{StaticResource Muted}" />
+        <Setter Property="Shell.TabBarBackgroundColor" Value="{StaticResource ChromeTop}" />
+        <Setter Property="Shell.TabBarForegroundColor" Value="{StaticResource Accent}" />
+        <Setter Property="Shell.TabBarTitleColor" Value="{StaticResource Accent}" />
+        <Setter Property="Shell.TabBarUnselectedColor" Value="{StaticResource Muted}" />
+    </Style>
+
     <Style x:Key="Title" TargetType="Label">
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontAttributes" Value="Bold" />
@@ -101,6 +113,12 @@
         <Setter Property="StrokeThickness" Value="1" />
         <Setter Property="Padding" Value="14" />
         <Setter Property="StrokeShape" Value="RoundRectangle 8" />
+    </Style>
+
+    <Style x:Key="SettingsCard" TargetType="Border" BasedOn="{StaticResource CardBorder}">
+        <Setter Property="Margin" Value="6" />
+        <Setter Property="MinimumWidthRequest" Value="320" />
+        <Setter Property="FlexLayout.Grow" Value="1" />
     </Style>
 
     <Style x:Key="FieldEntry" TargetType="Entry">

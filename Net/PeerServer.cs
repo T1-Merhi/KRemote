@@ -17,14 +17,14 @@ public sealed class PeerServer : IDisposable
     private readonly Func<string> _currentPin;
     private bool _started;
 
-    private sealed record PendingGroup(InboxMessage Message, int ExpectedCount)
+    private sealed record PendingGroup(SessionMessage Message, int ExpectedCount)
     {
         public DateTime LastActivity = DateTime.UtcNow;
     }
 
     private readonly ConcurrentDictionary<string, PendingGroup> _pendingGroups = new();
 
-    public event Action<InboxMessage>? MessageReceived;
+    public event Action<SessionMessage>? MessageReceived;
 
     public event Action<string, long, long>? TransferProgress;
 
@@ -113,7 +113,7 @@ public sealed class PeerServer : IDisposable
                         }
 
                         await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
-                        MessageReceived?.Invoke(new InboxMessage
+                        MessageReceived?.Invoke(new SessionMessage
                         {
                             Kind = MessageKind.Text,
                             From = SenderName(frame, remote),
@@ -164,7 +164,7 @@ public sealed class PeerServer : IDisposable
 
         if (header.GroupId is null)
         {
-            MessageReceived?.Invoke(new InboxMessage
+            MessageReceived?.Invoke(new SessionMessage
             {
                 Kind = MessageKind.File,
                 From = from,
@@ -185,7 +185,7 @@ public sealed class PeerServer : IDisposable
         var expectedCount = Math.Max(1, header.GroupCount ?? 1);
 
         var pending = _pendingGroups.GetOrAdd(key, _ => new PendingGroup(
-            new InboxMessage
+            new SessionMessage
             {
                 Kind = MessageKind.File,
                 From = from,
@@ -225,7 +225,7 @@ public sealed class PeerServer : IDisposable
         }
     }
 
-    private async Task<InboxAttachment?> ReceiveOneFileAsync(
+    private async Task<SessionAttachment?> ReceiveOneFileAsync(
         NetworkStream stream, Frame header, CancellationTokenSource timeout)
     {
         var size = header.Size ?? -1;
@@ -293,7 +293,7 @@ public sealed class PeerServer : IDisposable
 
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
 
-        return new InboxAttachment { FileName = fileName, FilePath = finalPath, FileSize = size };
+        return new SessionAttachment { FileName = fileName, FilePath = finalPath, FileSize = size };
     }
 
     private static void TryDelete(string path)

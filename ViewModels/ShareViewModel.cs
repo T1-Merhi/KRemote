@@ -321,7 +321,7 @@ public sealed partial class ShareViewModel : ObservableObject
             lastRender = now;
 
             var percent = overallTotal > 0 ? overallSent * 100.0 / overallTotal : 100;
-            var counts = $"{InboxMessage.FormatSize(overallSent)} of {InboxMessage.FormatSize(overallTotal)}";
+            var counts = $"{SessionMessage.FormatSize(overallSent)} of {SessionMessage.FormatSize(overallTotal)}";
 
             TransferStatus = p.fileCount > 1
                 ? $"File {p.fileIndex + 1} of {p.fileCount}  ·  {percent:0}%  ·  {counts}"
@@ -329,7 +329,7 @@ public sealed partial class ShareViewModel : ObservableObject
 
             var seconds = (now - started).TotalSeconds;
             if (seconds >= 0.25 && overallSent > 0)
-                TransferSpeed = $"{InboxMessage.FormatSize((long)(overallSent / seconds))}/s";
+                TransferSpeed = $"{SessionMessage.FormatSize((long)(overallSent / seconds))}/s";
         });
 
         await _sender.SendFilesAsync(

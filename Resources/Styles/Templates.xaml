@@ -3,7 +3,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
                     xmlns:models="clr-namespace:KRemote.Models">
 
-    <DataTemplate x:Key="MessageRow" x:DataType="models:InboxMessage">
+    <DataTemplate x:Key="MessageRow" x:DataType="models:SessionMessage">
         <Grid ColumnDefinitions="Auto,*,Auto" Padding="10,8" ColumnSpacing="8">
 
             <Ellipse Grid.Column="0"

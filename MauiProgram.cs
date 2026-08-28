@@ -41,14 +41,14 @@ public static class MauiProgram
             new PinManager(sp.GetRequiredService<SettingsService>().Current));
 
         builder.Services.AddSingleton<PeerSender>();
-        builder.Services.AddSingleton<InboxService>();
+        builder.Services.AddSingleton<SessionService>();
 
-        builder.Services.AddSingleton<InboxViewModel>();
+        builder.Services.AddSingleton<ActiveSessionViewModel>();
         builder.Services.AddSingleton<SavedViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddTransient<ShareViewModel>();
 
-        builder.Services.AddSingleton<InboxPage>();
+        builder.Services.AddSingleton<ActiveSessionPage>();
         builder.Services.AddSingleton<SavedPage>();
         builder.Services.AddSingleton<SettingsPage>();
         builder.Services.AddTransient<SharePage>();

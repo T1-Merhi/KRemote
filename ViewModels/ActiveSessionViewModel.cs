@@ -6,7 +6,7 @@ using KRemote.Services;
 
 namespace KRemote.ViewModels;
 
-public sealed partial class InboxViewModel : MessageListViewModel
+public sealed partial class ActiveSessionViewModel : MessageListViewModel
 {
     private readonly SettingsService _settings;
 
@@ -16,39 +16,39 @@ public sealed partial class InboxViewModel : MessageListViewModel
     [ObservableProperty]
     private bool isTransferring;
 
-    public InboxViewModel(InboxService inbox, IFileActions files, SettingsService settings)
-        : base(inbox, files)
+    public ActiveSessionViewModel(SessionService messages, IFileActions files, SettingsService settings)
+        : base(messages, files)
     {
         _settings = settings;
 
-        Inbox.TransferProgress += OnTransferProgress;
+        Session.TransferProgress += OnTransferProgress;
         Refresh();
     }
 
-    public int UnreadCount => _settings.Current.NotifyUnreadBadge ? Inbox.UnreadCount : 0;
+    public int UnreadCount => _settings.Current.NotifyUnreadBadge ? Session.UnreadCount : 0;
 
     public bool HasUnread => UnreadCount > 0;
 
     public string UnreadBadge => UnreadCount > 99 ? "99+" : UnreadCount.ToString();
 
-    public string ListenBanner => Inbox.ListenError ?? "";
+    public string ListenBanner => Session.ListenError ?? "";
 
-    public bool HasListenError => Inbox.ListenError is not null;
+    public bool HasListenError => Session.ListenError is not null;
 
     public bool CanSaveSelected => Selected is { IsSaved: false };
 
-    protected override bool Accepts(InboxMessage message) => true;
+    protected override bool Accepts(SessionMessage message) => !message.IsRestored;
 
     protected override string DescribeCounts()
     {
-        if (Inbox.Messages.Count == 0) return "Nothing received yet.";
+        if (Items.Count == 0) return "Nothing received yet.";
 
-        var saved = Inbox.Messages.Count(m => m.IsSaved);
-        var files = Inbox.Messages.Count(m => m.IsFile);
+        var saved = Items.Count(m => m.IsSaved);
+        var files = Items.Count(m => m.IsFile);
 
-        var parts = new List<string> { $"{Inbox.Messages.Count} in this session" };
+        var parts = new List<string> { $"{Items.Count} in this session" };
         if (files > 0) parts.Add($"{files} file{(files == 1 ? "" : "s")}");
-        parts.Add($"{saved} saved to disk");
+        if (saved > 0) parts.Add($"{saved} saved to disk");
 
         return string.Join("  ·  ", parts);
     }
@@ -67,7 +67,7 @@ public sealed partial class InboxViewModel : MessageListViewModel
 
         var percent = total > 0 ? received * 100.0 / total : 0;
         TransferStatus = $"Receiving {fileName}… {percent:0}%  " +
-                         $"({InboxMessage.FormatSize(received)} of {InboxMessage.FormatSize(total)})";
+                         $"({SessionMessage.FormatSize(received)} of {SessionMessage.FormatSize(total)})";
     }
 
     [RelayCommand]
@@ -75,7 +75,7 @@ public sealed partial class InboxViewModel : MessageListViewModel
     {
         if (Selected is not { IsSaved: false } message) return;
 
-        Inbox.SetSaved(message, true);
+        Session.SetSaved(message, true);
         OnPropertyChanged(nameof(CanSaveSelected));
     }
 

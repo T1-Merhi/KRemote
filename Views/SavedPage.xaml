@@ -4,13 +4,12 @@
              xmlns:vm="clr-namespace:KRemote.ViewModels"
              x:Class="KRemote.Views.SavedPage"
              x:DataType="vm:SavedViewModel"
+             Shell.NavBarIsVisible="False"
              Title="Saved">
 
-    <Grid RowDefinitions="Auto,*,Auto" Padding="14" RowSpacing="10">
+    <Grid RowDefinitions="*,Auto" Padding="14" RowSpacing="10">
 
-        <Label Grid.Row="0" Text="Saved" Style="{StaticResource Title}" />
-
-        <Grid Grid.Row="1" x:Name="BodyGrid" ColumnDefinitions="*,*" ColumnSpacing="12">
+        <Grid Grid.Row="0" x:Name="BodyGrid" ColumnDefinitions="*,*" ColumnSpacing="12">
 
             <Border Grid.Column="0"
                     Style="{StaticResource CardBorder}"
@@ -22,7 +21,7 @@
                                     SelectionMode="Single"
                                     ItemTemplate="{StaticResource MessageRow}" />
 
-                    <Label Text="Nothing saved yet. Press Save on an inbox message to keep it."
+                    <Label Text="Nothing saved yet. Press Save on a message to keep it."
                            Style="{StaticResource EmptyStateText}"
                            VerticalOptions="Center"
                            Margin="20"
@@ -97,7 +96,7 @@
 
         </Grid>
 
-        <Label Grid.Row="2" Text="{Binding Status}" Style="{StaticResource Subtle}" />
+        <Label Grid.Row="1" Text="{Binding Status}" Style="{StaticResource Subtle}" />
 
     </Grid>
 

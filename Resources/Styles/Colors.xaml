@@ -15,6 +15,9 @@
     <Color x:Key="RowHover">#F0F2F5</Color>
     <Color x:Key="GlyphMuted">#C9CED6</Color>
 
+    <Color x:Key="ChromeTop">#EDF3FE</Color>
+    <Color x:Key="ChromeBottom">#DCE8FC</Color>
+
     <SolidColorBrush x:Key="BgBrush" Color="{StaticResource Bg}" />
     <SolidColorBrush x:Key="CardBrush" Color="{StaticResource Card}" />
     <SolidColorBrush x:Key="LineBrush" Color="{StaticResource Line}" />

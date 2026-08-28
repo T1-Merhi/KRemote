@@ -18,7 +18,7 @@ public sealed class WindowsNotifier : INotifier
 
     public bool SupportsWindowFlash => true;
 
-    public void NotifyMessageReceived(InboxMessage message)
+    public void NotifyMessageReceived(SessionMessage message)
     {
         var settings = _settings();
 
@@ -32,7 +32,7 @@ public sealed class WindowsNotifier : INotifier
     [DllImport("user32.dll")]
     private static extern bool MessageBeep(uint type);
 
-    private static void ShowToast(InboxMessage message)
+    private static void ShowToast(SessionMessage message)
     {
         try
         {
