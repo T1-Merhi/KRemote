@@ -24,6 +24,28 @@ namespace KRemote.Net;
 /// either side. The receiver answers "ready" before the first byte moves, which
 /// is what lets it reject a transfer (bad name, unwritable folder) without the
 /// sender having pushed the whole file first.
+///
+/// Sending several files at once takes one of two shapes, chosen by the
+/// sender's Settings:
+///
+///   - Zip mode needs no protocol change at all: the files are zipped into one
+///     archive first and sent as an ordinary single "file" frame.
+///   - Grouped mode tags each file frame with a shared group id so the
+///     receiver can stitch the results back into one inbox entry with several
+///     attachments, while every exchange (ready/bytes/ok) stays exactly the
+///     same as a normal single-file transfer -- grouping is purely a
+///     receiver-side bookkeeping step layered on top:
+///
+///   group ->  {"type":"file","name":"A","fileName":"a.pdf","size":123,"groupId":"g1","groupCount":2,"groupIndex":0,"text":"see attached"}
+///         &lt;-  {"type":"ready"} / &lt;bytes&gt; / {"type":"ok"}
+///         ->  {"type":"file","name":"A","fileName":"b.pdf","size":456,"groupId":"g1","groupCount":2,"groupIndex":1}
+///         &lt;-  {"type":"ready"} / &lt;bytes&gt; / {"type":"ok"}
+///
+/// A description typed alongside the files rides in Text on the first file of
+/// the group (index 0) only, so the receiver attaches it once, not per file.
+/// All group fields are optional and additive: an old receiver without them
+/// simply gets each file as its own separate inbox entry, which is a safe,
+/// non-corrupting degradation.
 /// </summary>
 public static class Protocol
 {
@@ -63,6 +85,9 @@ public sealed class Frame
     [JsonPropertyName("fileName")] public string? FileName { get; set; }
     [JsonPropertyName("size")] public long? Size { get; set; }
     [JsonPropertyName("error")] public string? Error { get; set; }
+    [JsonPropertyName("groupId")] public string? GroupId { get; set; }
+    [JsonPropertyName("groupCount")] public int? GroupCount { get; set; }
+    [JsonPropertyName("groupIndex")] public int? GroupIndex { get; set; }
 
     public static Frame Ping() => new() { Type = "ping" };
     public static Frame Pong(string name) => new() { Type = "pong", Name = name };
@@ -74,8 +99,14 @@ public sealed class Frame
     public static Frame TextMessage(string name, string? title, string text) =>
         new() { Type = "text", Name = name, Title = Blank(title), Text = text };
 
-    public static Frame FileHeader(string name, string? title, string fileName, long size) =>
-        new() { Type = "file", Name = name, Title = Blank(title), FileName = fileName, Size = size };
+    public static Frame FileHeader(
+        string name, string? title, string fileName, long size,
+        string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null) =>
+        new()
+        {
+            Type = "file", Name = name, Title = Blank(title), FileName = fileName, Size = size,
+            Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex
+        };
 
     private static string? Blank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

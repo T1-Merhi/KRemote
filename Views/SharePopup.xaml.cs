@@ -20,6 +20,7 @@ public partial class SharePopup : Window
 
     private readonly ObservableCollection<Peer> _peers = [];
     private readonly ObservableCollection<StagedAttachment> _attachments = [];
+    private readonly AppSettings _settings;
 
     private bool _scanning;
     private bool _sending;
@@ -27,10 +28,11 @@ public partial class SharePopup : Window
     /// <summary>Set when a send completes successfully, so the owner can show a toast.</summary>
     public string? SuccessMessage { get; private set; }
 
-    public SharePopup()
+    public SharePopup(AppSettings settings)
     {
         InitializeComponent();
 
+        _settings = settings;
         PeerList.ItemsSource = _peers;
         AttachmentList.ItemsSource = _attachments;
     }
@@ -179,13 +181,12 @@ public partial class SharePopup : Window
             if (!hasAttachments)
             {
                 await PeerSender.SendTextAsync(peer.Address, title, text, CancellationToken.None);
-                SuccessMessage = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
             }
             else
             {
-                await SendAttachmentsAsync(peer, title);
-                SuccessMessage = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
+                await SendAttachmentsAsync(peer, title, hasText ? text : null);
             }
+            SuccessMessage = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
 
             DialogResult = true;
             Close();
@@ -203,33 +204,22 @@ public partial class SharePopup : Window
         }
     }
 
-    /// <summary>
-    /// Interim sending path: each staged file goes as its own independent
-    /// SendFileAsync call, in today's single-file wire format. Zip and
-    /// grouped-message modes replace this once the protocol supports them.
-    /// </summary>
-    private async Task SendAttachmentsAsync(Peer peer, string? title)
+    private async Task SendAttachmentsAsync(Peer peer, string? title, string? text)
     {
         TransferPanel.Visibility = Visibility.Visible;
-        var files = _attachments.ToList();
+        var files = _attachments.Select(a => a.FilePath).ToList();
 
-        for (var i = 0; i < files.Count; i++)
+        var progress = new Progress<(int fileIndex, int fileCount, long sent, long total)>(p =>
         {
-            var file = files[i];
-            TransferProgress.Maximum = Math.Max(1, file.Size);
-            TransferProgress.Value = 0;
-            TransferStatus.Text = $"Sending {file.FileName} ({i + 1} of {files.Count})…";
+            TransferProgress.Maximum = Math.Max(1, p.total);
+            TransferProgress.Value = p.sent;
+            var percent = p.total > 0 ? p.sent * 100.0 / p.total : 100;
+            TransferStatus.Text = files.Count > 1
+                ? $"Sending file {p.fileIndex + 1} of {p.fileCount}  ·  {percent:0}%"
+                : $"{percent:0}%";
+        });
 
-            var progress = new Progress<long>(sent =>
-            {
-                TransferProgress.Value = sent;
-                var percent = file.Size > 0 ? sent * 100.0 / file.Size : 100;
-                TransferStatus.Text = $"{file.FileName}  ·  {percent:0}%  ({i + 1} of {files.Count})";
-            });
-
-            // Only the first file carries the shared title/text description.
-            await PeerSender.SendFileAsync(peer.Address, i == 0 ? title : null, file.FilePath, progress, CancellationToken.None);
-        }
+        await PeerSender.SendFilesAsync(peer.Address, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

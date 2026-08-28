@@ -60,7 +60,7 @@ public partial class MainWindow : Window
 
     private void StartServer()
     {
-        _server = new PeerServer();
+        _server = new PeerServer(() => _settings);
         _server.MessageReceived += OnMessageReceived;
         _server.TransferProgress += OnTransferProgress;
 
@@ -117,7 +117,7 @@ public partial class MainWindow : Window
 
     private void ShareButton_Click(object sender, RoutedEventArgs e)
     {
-        var popup = new Views.SharePopup { Owner = this };
+        var popup = new Views.SharePopup(_settings) { Owner = this };
         if (popup.ShowDialog() == true && popup.SuccessMessage is not null)
             ShowToast(popup.SuccessMessage);
     }
@@ -195,12 +195,29 @@ public partial class MainWindow : Window
 
         var lines = new List<string>();
         if (!string.IsNullOrWhiteSpace(message.Title)) lines.Add(message.Title.Trim());
-        lines.Add(message.FileName);
-        lines.Add($"{InboxMessage.FormatSize(message.FileSize)}  ({message.FileSize:N0} bytes)");
+        if (!string.IsNullOrWhiteSpace(message.Text)) { lines.Add(message.Text.Trim()); lines.Add(""); }
+
+        if (message.IsGroup)
+        {
+            lines.Add($"{message.Attachments.Count} files:");
+            foreach (var attachment in message.Attachments)
+                lines.Add($"  {attachment.FileName}  ({InboxMessage.FormatSize(attachment.FileSize)})");
+        }
+        else
+        {
+            lines.Add(message.FileName);
+            lines.Add($"{InboxMessage.FormatSize(message.FileSize)}  ({message.FileSize:N0} bytes)");
+        }
+
         lines.Add($"From {message.From} ({message.FromAddress}) at {message.ReceivedAt:MMM d, yyyy HH:mm:ss}");
-        lines.Add("");
-        lines.Add("Saved to:");
-        lines.Add(message.FilePath);
+
+        if (!message.IsGroup)
+        {
+            lines.Add("");
+            lines.Add("Saved to:");
+            lines.Add(message.FilePath);
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 

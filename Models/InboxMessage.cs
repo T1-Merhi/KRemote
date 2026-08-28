@@ -43,6 +43,15 @@ public sealed class InboxMessage : INotifyPropertyChanged
 
     public long FileSize { get; set; }
 
+    /// <summary>
+    /// Populated for a grouped multi-file send. The single-file fields above
+    /// still mirror the first attachment for backward-compatible display.
+    /// </summary>
+    public List<InboxAttachment> Attachments { get; set; } = [];
+
+    [JsonIgnore]
+    public bool IsGroup => Attachments.Count > 1;
+
     private bool _isSaved;
     public bool IsSaved
     {
@@ -68,7 +77,8 @@ public sealed class InboxMessage : INotifyPropertyChanged
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(Title)) return Title.Trim();
+            if (!string.IsNullOrWhiteSpace(Title)) return IsGroup ? $"{Title.Trim()} ({Attachments.Count} files)" : Title.Trim();
+            if (IsGroup) return $"{Attachments.Count} files";
             if (IsFile) return FileName;
 
             var firstLine = Flatten(Text);
@@ -84,16 +94,19 @@ public sealed class InboxMessage : INotifyPropertyChanged
         get
         {
             var parts = new List<string> { From, ReceivedAt.ToString("MMM d, HH:mm") };
-            if (IsFile) parts.Add(FormatSize(FileSize));
+            if (IsGroup) parts.Add(FormatSize(Attachments.Sum(a => a.FileSize)));
+            else if (IsFile) parts.Add(FormatSize(FileSize));
             if (IsSaved) parts.Add("saved");
             return string.Join("  ·  ", parts);
         }
     }
 
     [JsonIgnore]
-    public string DetailHeader => IsFile
-        ? $"{FileName}  ({FormatSize(FileSize)})"
-        : Header;
+    public string DetailHeader => IsGroup
+        ? $"{Attachments.Count} files  ({FormatSize(Attachments.Sum(a => a.FileSize))})"
+        : IsFile
+            ? $"{FileName}  ({FormatSize(FileSize)})"
+            : Header;
 
     public static string FormatSize(long bytes)
     {

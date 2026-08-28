@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -17,14 +18,27 @@ public sealed class PeerServer : IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Any, Protocol.Port);
     private readonly CancellationTokenSource _cts = new();
+    private readonly Func<AppSettings> _settings;
     private bool _started;
+
+    private sealed record PendingGroup(InboxMessage Message, int ExpectedCount)
+    {
+        public DateTime LastActivity = DateTime.UtcNow;
+    }
+
+    private readonly ConcurrentDictionary<string, PendingGroup> _pendingGroups = new();
 
     public event Action<InboxMessage>? MessageReceived;
 
     /// <summary>Fires repeatedly while a file is arriving: name, bytes so far, total.</summary>
     public event Action<string, long, long>? TransferProgress;
 
-    /// <summary>Where received files are written. Created on first use.</summary>
+    public PeerServer(Func<AppSettings>? settings = null)
+    {
+        _settings = settings ?? (() => new AppSettings());
+    }
+
+    /// <summary>Where received files are written when no Settings override is set.</summary>
     public static string DownloadDirectory
     {
         get
@@ -38,6 +52,15 @@ public sealed class PeerServer : IDisposable
                 downloads = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
             return Path.Combine(downloads, "KRemote");
+        }
+    }
+
+    private string EffectiveDownloadDirectory
+    {
+        get
+        {
+            var configured = _settings().DownloadsFolder;
+            return string.IsNullOrWhiteSpace(configured) ? DownloadDirectory : configured;
         }
     }
 
@@ -118,25 +141,100 @@ public sealed class PeerServer : IDisposable
     private async Task ReceiveFileAsync(
         NetworkStream stream, Frame header, string remote, CancellationTokenSource timeout)
     {
+        var attachment = await ReceiveOneFileAsync(stream, header, timeout);
+        if (attachment is null) return;
+
+        var from = string.IsNullOrWhiteSpace(header.Name) ? remote : header.Name!;
+
+        if (header.GroupId is null)
+        {
+            MessageReceived?.Invoke(new InboxMessage
+            {
+                Kind = MessageKind.File,
+                From = from,
+                FromAddress = remote,
+                Title = header.Title ?? "",
+                ReceivedAt = DateTime.Now,
+                FileName = attachment.FileName,
+                FilePath = attachment.FilePath,
+                FileSize = attachment.FileSize,
+                Attachments = [attachment]
+            });
+            return;
+        }
+
+        SweepStaleGroups();
+
+        var key = $"{remote}|{header.GroupId}";
+        var expectedCount = Math.Max(1, header.GroupCount ?? 1);
+
+        var pending = _pendingGroups.GetOrAdd(key, _ => new PendingGroup(
+            new InboxMessage
+            {
+                Kind = MessageKind.File,
+                From = from,
+                FromAddress = remote,
+                Title = header.Title ?? "",
+                Text = header.Text ?? "",
+                ReceivedAt = DateTime.Now,
+                FileName = attachment.FileName,
+                FilePath = attachment.FilePath,
+                FileSize = attachment.FileSize
+            },
+            expectedCount));
+
+        lock (pending)
+        {
+            pending.Message.Attachments.Add(attachment);
+            pending.LastActivity = DateTime.UtcNow;
+
+            if (pending.Message.Attachments.Count < pending.ExpectedCount) return;
+        }
+
+        _pendingGroups.TryRemove(key, out _);
+        MessageReceived?.Invoke(pending.Message);
+    }
+
+    /// <summary>Evicts groups that stopped receiving files, surfacing whatever attachments did arrive.</summary>
+    private void SweepStaleGroups()
+    {
+        var timeout = TimeSpan.FromSeconds(Math.Max(1, _settings().GroupTimeoutSeconds));
+        var cutoff = DateTime.UtcNow - timeout;
+
+        foreach (var (key, pending) in _pendingGroups)
+        {
+            if (pending.LastActivity > cutoff) continue;
+            if (!_pendingGroups.TryRemove(key, out _)) continue;
+
+            // Already-downloaded files are never discarded, even if the group
+            // never completed -- only the single-row grouping is lost.
+            MessageReceived?.Invoke(pending.Message);
+        }
+    }
+
+    private async Task<InboxAttachment?> ReceiveOneFileAsync(
+        NetworkStream stream, Frame header, CancellationTokenSource timeout)
+    {
         var size = header.Size ?? -1;
         if (size < 0)
         {
             await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Missing or negative file size.")), timeout.Token);
-            return;
+            return null;
         }
 
+        var downloadDirectory = EffectiveDownloadDirectory;
         string finalPath;
         string partPath;
         try
         {
-            Directory.CreateDirectory(DownloadDirectory);
-            finalPath = UniquePath(DownloadDirectory, SafeFileName(header.FileName));
+            Directory.CreateDirectory(downloadDirectory);
+            finalPath = FileNaming.UniquePath(downloadDirectory, FileNaming.Sanitize(header.FileName, "received-file"));
             partPath = finalPath + ".part";
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused($"Cannot write to the downloads folder: {e.Message}")), timeout.Token);
-            return;
+            return null;
         }
 
         // Only now does the sender start pushing bytes.
@@ -187,72 +285,7 @@ public sealed class PeerServer : IDisposable
 
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
 
-        MessageReceived?.Invoke(new InboxMessage
-        {
-            Kind = MessageKind.File,
-            From = string.IsNullOrWhiteSpace(header.Name) ? remote : header.Name!,
-            FromAddress = remote,
-            Title = header.Title ?? "",
-            ReceivedAt = DateTime.Now,
-            FileName = fileName,
-            FilePath = finalPath,
-            FileSize = size
-        });
-    }
-
-    /// <summary>
-    /// Reduces a name supplied by another machine to something safe to create
-    /// in the downloads folder. The remote side is not trusted: a name like
-    /// <c>..\..\Windows\System32\evil.dll</c> must not escape the folder, so
-    /// every directory component is discarded and the remainder is scrubbed.
-    /// </summary>
-    private static string SafeFileName(string? requested)
-    {
-        var name = requested ?? "";
-
-        // Cut anything that looks like a path, in either separator style, before
-        // asking the framework for the leaf.
-        var cut = name.LastIndexOfAny(['/', '\\', ':']);
-        if (cut >= 0) name = name[(cut + 1)..];
-        name = Path.GetFileName(name);
-
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-            name = name.Replace(invalid, '_');
-
-        name = name.Trim().TrimEnd('.');
-
-        if (name.Length == 0 || name is "." or "..")
-            name = "received-file";
-
-        // Windows refuses these regardless of extension.
-        string[] reserved = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
-                             "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
-                             "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"];
-        if (reserved.Contains(Path.GetFileNameWithoutExtension(name), StringComparer.OrdinalIgnoreCase))
-            name = "_" + name;
-
-        // Leave room for the collision suffix and the .part extension.
-        if (name.Length > 200) name = name[..200];
-
-        return name;
-    }
-
-    /// <summary>Appends " (2)", " (3)" and so on rather than overwriting an existing file.</summary>
-    private static string UniquePath(string directory, string fileName)
-    {
-        var path = Path.Combine(directory, fileName);
-        if (!File.Exists(path) && !File.Exists(path + ".part")) return path;
-
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-
-        for (var index = 2; index < int.MaxValue; index++)
-        {
-            var candidate = Path.Combine(directory, $"{stem} ({index}){extension}");
-            if (!File.Exists(candidate) && !File.Exists(candidate + ".part")) return candidate;
-        }
-
-        throw new IOException($"Could not find a free name for {fileName}.");
+        return new InboxAttachment { FileName = fileName, FilePath = finalPath, FileSize = size };
     }
 
     private static void TryDelete(string path)
