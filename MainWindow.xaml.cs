@@ -370,7 +370,6 @@ public partial class MainWindow : Window
         var savedIsFile = savedMessage is { IsFile: true };
 
         SavedCopyButton.IsEnabled = savedMessage is not null;
-        SavedDeleteButton.IsEnabled = savedMessage is not null;
         UnsaveButton.IsEnabled = savedMessage is not null;
         SavedOpenButton.IsEnabled = savedIsFile;
         SavedShowInFolderButton.IsEnabled = savedIsFile;
@@ -417,20 +416,10 @@ public partial class MainWindow : Window
         NotifyBadgeCheck.IsChecked = _settings.NotifyUnreadBadge;
 
         PinEnabledCheck.IsChecked = _settings.PinEnabled;
-        if (_settings.PinMode == PinMode.RandomEachLaunch) PinRandomRadio.IsChecked = true;
-        else PinPermanentRadio.IsChecked = true;
-        UpdatePinBoxForMode();
+        PinBox.Text = _settings.Pin;
         UpdatePinOptionsVisibility();
 
         _loadingSettings = false;
-    }
-
-    private void UpdatePinBoxForMode()
-    {
-        var isRandom = PinRandomRadio.IsChecked == true;
-        PinBox.IsReadOnly = isRandom;
-        PinBox.Text = isRandom ? _pinManager.SessionPin : _settings.Pin;
-        PinLabel.Text = isRandom ? "This launch's PIN" : "PIN";
     }
 
     private void SaveSettings()
@@ -502,17 +491,33 @@ public partial class MainWindow : Window
     {
         if (_loadingSettings) return;
         _settings.PinEnabled = PinEnabledCheck.IsChecked == true;
-        _settings.PinMode = PinRandomRadio.IsChecked == true ? PinMode.RandomEachLaunch : PinMode.Permanent;
-        UpdatePinBoxForMode();
         UpdatePinOptionsVisibility();
+        ValidatePin();
         SaveSettings();
     }
 
     private void PinBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (_loadingSettings || PinBox.IsReadOnly) return;
+        if (_loadingSettings) return;
         _settings.Pin = PinBox.Text.Trim();
+        ValidatePin();
         SaveSettings();
+    }
+
+    private void ValidatePin()
+    {
+        var pin = PinBox.Text.Trim();
+        var valid = pin.Length == 4 && pin.All(char.IsDigit);
+
+        if (PinEnabledCheck.IsChecked != true || valid)
+        {
+            PinHint.Text = "Four digits.";
+            PinHint.Foreground = (Brush)FindResource("Muted");
+            return;
+        }
+
+        PinHint.Text = "Enter 4 digits, or nobody will be able to send to this PC.";
+        PinHint.Foreground = (Brush)FindResource("Danger");
     }
 
     private void CopyPinButton_Click(object sender, RoutedEventArgs e)

@@ -47,8 +47,19 @@ public sealed class InboxMessage : INotifyPropertyChanged
         }
     }
 
+    private bool _isUnread = true;
+
     [JsonIgnore]
-    public bool IsUnread { get; set; } = true;
+    public bool IsUnread
+    {
+        get => _isUnread;
+        set
+        {
+            if (_isUnread == value) return;
+            _isUnread = value;
+            OnPropertyChanged(nameof(IsUnread));
+        }
+    }
 
     [JsonIgnore]
     public bool IsFile => Kind == MessageKind.File;

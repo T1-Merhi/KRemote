@@ -18,17 +18,13 @@ public partial class FirstRunPinPrompt : Window
     public void Apply(AppSettings settings)
     {
         settings.PinEnabled = EnableCheck.IsChecked == true;
-        if (settings.PinEnabled)
-        {
-            settings.PinMode = RandomRadio.IsChecked == true ? PinMode.RandomEachLaunch : PinMode.Permanent;
-            settings.Pin = PinBox.Text.Trim();
-        }
+        if (settings.PinEnabled) settings.Pin = PinBox.Text.Trim();
         settings.FirstRunPromptShown = true;
     }
 
     private void ContinueButton_Click(object sender, RoutedEventArgs e)
     {
-        if (EnableCheck.IsChecked == true && PermanentRadio.IsChecked == true &&
+        if (EnableCheck.IsChecked == true &&
             (PinBox.Text.Trim().Length != 4 || !PinBox.Text.Trim().All(char.IsDigit)))
         {
             MessageBox.Show(this, "Enter a 4-digit PIN.", "KRemote", MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -165,20 +165,37 @@
         <DataTemplate x:Key="InboxRowTemplate">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding Header}" FontSize="12.5" FontWeight="SemiBold"
+
+                <Border x:Name="UnreadDot" Grid.Column="0" Width="8" Height="8" CornerRadius="4"
+                        Background="{StaticResource Accent}" Margin="0,5,9,0"
+                        VerticalAlignment="Top" ToolTip="Unread"
+                        Visibility="{Binding IsUnread, Converter={StaticResource BoolToVis}}"/>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock x:Name="HeaderText" Text="{Binding Header}" FontSize="12.5"
                                Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{Binding Meta}" FontSize="11" Margin="0,2,0,0"
                                Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="&#xE718;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+
+                <TextBlock Grid.Column="2" Text="&#xE718;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                            FontSize="13" Foreground="{StaticResource Accent}" Margin="8,0,0,0"
                            VerticalAlignment="Top" ToolTip="Saved"
                            Visibility="{Binding IsSaved, Converter={StaticResource BoolToVis}}"/>
             </Grid>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsUnread}" Value="True">
+                    <Setter TargetName="HeaderText" Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsUnread}" Value="False">
+                    <Setter TargetName="HeaderText" Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <Style x:Key="FlatTabItem" TargetType="TabItem">
@@ -218,6 +235,24 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="ItemContainerStyle" Value="{StaticResource FlatTabItem}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Panel.ZIndex="1"
+                                      HorizontalAlignment="Left" Background="Transparent"/>
+                            <ContentPresenter Grid.Row="1" ContentSource="SelectedContent"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="CountBadge" TargetType="Border">

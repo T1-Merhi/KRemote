@@ -5,16 +5,13 @@ namespace KRemote.Net;
 public sealed class PinManager
 {
     private readonly AppSettings _settings;
-    private string? _sessionPin;
 
     public PinManager(AppSettings settings)
     {
         _settings = settings;
     }
 
-    public string SessionPin => _sessionPin ??= Random.Shared.Next(0, 10000).ToString("D4");
-
-    public string CurrentPin => _settings.PinMode == PinMode.RandomEachLaunch ? SessionPin : _settings.Pin;
+    public string CurrentPin => _settings.Pin;
 
     private readonly HashSet<string> _unlockedAddresses = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _cachedPinPerAddress = new(StringComparer.OrdinalIgnoreCase);

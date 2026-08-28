@@ -6,12 +6,6 @@ public enum MultiFileSendMode
     Grouped
 }
 
-public enum PinMode
-{
-    Permanent,
-    RandomEachLaunch
-}
-
 public sealed class AppSettings
 {
     public string DisplayName { get; set; } = "";
@@ -28,7 +22,6 @@ public sealed class AppSettings
     public bool NotifyUnreadBadge { get; set; } = true;
 
     public bool PinEnabled { get; set; }
-    public PinMode PinMode { get; set; } = PinMode.Permanent;
 
     public string Pin { get; set; } = "";
 

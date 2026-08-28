@@ -126,13 +126,10 @@
                                     ToolTip="Reveal the file in File Explorer" Margin="0,0,8,6" IsEnabled="False" Click="ShowInFolderButton_Click"/>
                             <Button x:Name="SavedCopyButton" Style="{StaticResource IconButton}" Content="Copy" Tag="&#xE8C8;"
                                     ToolTip="Copy the text, or a file's path" Margin="0,0,8,6" IsEnabled="False" Click="CopyButton_Click"/>
-                            <Button x:Name="UnsaveButton" Style="{StaticResource IconButton}" Content="Unsave" Tag="&#xE77A;"
-                                    ToolTip="Stop keeping this message after KRemote closes"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="UnsaveButton_Click"/>
-                            <Button x:Name="SavedDeleteButton" Style="{StaticResource IconButton}" Content="Delete" Tag="&#xE74D;"
-                                    ToolTip="Remove this row. The downloaded file stays on disk."
+                            <Button x:Name="UnsaveButton" Style="{StaticResource IconButton}" Content="Remove from Saved" Tag="&#xE77A;"
+                                    ToolTip="Stop keeping this message. It stays in the Inbox for this session, and the downloaded file stays on disk."
                                     Margin="0,0,0,6" IsEnabled="False" Foreground="{StaticResource Danger}"
-                                    Click="DeleteButton_Click"/>
+                                    Click="UnsaveButton_Click"/>
                         </WrapPanel>
 
                         <Border Grid.Row="1" Grid.Column="2" Margin="0,10,0,0" CornerRadius="8"
@@ -153,10 +150,20 @@
 
             <TabItem Header="Settings">
                 <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
-                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                        <Border Background="{StaticResource Card}" CornerRadius="10"
-                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
+                        <Border Grid.Row="0" Grid.Column="0" Background="{StaticResource Card}" CornerRadius="10"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <TextBlock Text="General" Style="{StaticResource Title}"/>
 
@@ -167,7 +174,7 @@
                                              TextChanged="DisplayNameBox_TextChanged"/>
                                 </Border>
                                 <TextBlock Style="{StaticResource Subtle}" Margin="0,4,0,0"
-                                           Text="Shown to other PCs alongside this machine's Windows name. Leave empty to show only the Windows name."/>
+                                           Text="How other PCs see you, both when they scan and on every message you send. Leave empty to use this machine's Windows name."/>
 
                                 <TextBlock Text="Downloads folder" Style="{StaticResource Subtle}" Margin="0,16,0,4"/>
                                 <Grid>
@@ -190,8 +197,9 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{StaticResource Card}" CornerRadius="10"
-                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
+                        <Border Grid.Row="0" Grid.Column="2" Background="{StaticResource Card}" CornerRadius="10"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <TextBlock Text="Sending" Style="{StaticResource Title}"/>
 
@@ -213,8 +221,9 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{StaticResource Card}" CornerRadius="10"
-                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
+                        <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Card}" CornerRadius="10"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <TextBlock Text="Notifications" Style="{StaticResource Title}"/>
                                 <CheckBox x:Name="NotifyToastCheck" Content="Show a Windows notification"
@@ -228,19 +237,17 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{StaticResource Card}" CornerRadius="10"
-                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
+                        <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource Card}" CornerRadius="10"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14"
+                                VerticalAlignment="Top">
                             <StackPanel>
                                 <TextBlock Text="Security" Style="{StaticResource Title}"/>
-                                <CheckBox x:Name="PinEnabledCheck" Content="Require a PIN before anyone can send me anything"
-                                          Margin="0,14,0,10" Checked="PinSetting_Changed" Unchecked="PinSetting_Changed"/>
+                                <CheckBox x:Name="PinEnabledCheck" Content="Set a PIN code"
+                                          Margin="0,14,0,4" Checked="PinSetting_Changed" Unchecked="PinSetting_Changed"/>
+                                <TextBlock Style="{StaticResource Subtle}" Margin="0,0,0,10"
+                                           Text="Senders must enter this PIN before this PC will accept anything from them."/>
 
                                 <StackPanel x:Name="PinOptionsPanel">
-                                    <RadioButton x:Name="PinPermanentRadio" GroupName="PinMode" Content="Same PIN every time"
-                                                 Checked="PinSetting_Changed" Margin="0,0,0,6"/>
-                                    <RadioButton x:Name="PinRandomRadio" GroupName="PinMode" Content="New random PIN each launch"
-                                                 Checked="PinSetting_Changed" Margin="0,0,0,10"/>
-
                                     <TextBlock x:Name="PinLabel" Text="PIN" Style="{StaticResource Subtle}" Margin="0,0,0,4"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -258,11 +265,13 @@
                                                 Content="Copy" Tag="&#xE8C8;" ToolTip="Copy this PIN to share it with a sender"
                                                 Click="CopyPinButton_Click"/>
                                     </Grid>
+                                    <TextBlock x:Name="PinHint" Style="{StaticResource Subtle}" Margin="0,4,0,0"
+                                               Text="Four digits."/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
 
-                    </StackPanel>
+                    </Grid>
                 </ScrollViewer>
             </TabItem>
 
