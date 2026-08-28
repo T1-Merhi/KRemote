@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
 
-namespace KRemote.Notifications;
+namespace KRemote.Platforms.Windows;
 
 internal static class TaskbarFlash
 {
@@ -19,15 +17,16 @@ internal static class TaskbarFlash
     [DllImport("user32.dll")]
     private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
     private const uint FLASHW_TRAY = 0x00000002;
     private const uint FLASHW_TIMERNOFG = 0x0000000C;
 
-    public static void Flash(Window window)
+    public static void Flash(IntPtr handle)
     {
-        if (window.IsActive) return;
-
-        var handle = new WindowInteropHelper(window).Handle;
         if (handle == IntPtr.Zero) return;
+        if (GetForegroundWindow() == handle) return;
 
         var info = new FLASHWINFO
         {

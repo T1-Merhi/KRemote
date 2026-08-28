@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="KRemote.Views.FirstRunPinPage"
+             Title="Welcome to KRemote">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="18" Spacing="14">
+
+            <Label Text="Protect this device with a PIN?"
+                   Style="{StaticResource Title}" />
+
+            <Label Style="{StaticResource Subtle}"
+                   Text="Without a PIN, any KRemote device on your network can put text and files on this one. With a PIN, senders have to enter it first. You can change this later in Settings." />
+
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Grid.Column="0"
+                       Text="Require a PIN"
+                       Style="{StaticResource Body}"
+                       VerticalOptions="Center" />
+                <Switch x:Name="PinSwitch" Grid.Column="1" Toggled="OnPinToggled" />
+            </Grid>
+
+            <VerticalStackLayout x:Name="PinPanel" Spacing="6" IsVisible="False">
+                <Entry x:Name="PinBox"
+                       Placeholder="4 digits"
+                       MaxLength="4"
+                       Keyboard="Numeric"
+                       TextChanged="OnPinTextChanged"
+                       Style="{StaticResource FieldEntry}" />
+
+                <Label x:Name="PinHint"
+                       Text="Four digits."
+                       Style="{StaticResource Subtle}" />
+            </VerticalStackLayout>
+
+            <Button Text="Continue"
+                    Style="{StaticResource PrimaryButton}"
+                    Clicked="OnContinue" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

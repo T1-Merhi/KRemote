@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Color x:Key="Bg">#F4F5F7</Color>
+    <Color x:Key="Card">#FFFFFF</Color>
+    <Color x:Key="Line">#E1E4E8</Color>
+    <Color x:Key="Ink">#1F2328</Color>
+    <Color x:Key="Muted">#6E7781</Color>
+    <Color x:Key="Accent">#2563EB</Color>
+    <Color x:Key="AccentHover">#1D4ED8</Color>
+    <Color x:Key="AccentSoft">#E8F0FE</Color>
+    <Color x:Key="Danger">#B42318</Color>
+    <Color x:Key="Disabled">#B7C4DA</Color>
+    <Color x:Key="RowHover">#F0F2F5</Color>
+    <Color x:Key="GlyphMuted">#C9CED6</Color>
+
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource Bg}" />
+    <SolidColorBrush x:Key="CardBrush" Color="{StaticResource Card}" />
+    <SolidColorBrush x:Key="LineBrush" Color="{StaticResource Line}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
+
+</ResourceDictionary>

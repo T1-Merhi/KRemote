@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:models="clr-namespace:KRemote.Models">
+
+    <DataTemplate x:Key="MessageRow" x:DataType="models:InboxMessage">
+        <Grid ColumnDefinitions="Auto,*,Auto" Padding="10,8" ColumnSpacing="8">
+
+            <Ellipse Grid.Column="0"
+                     WidthRequest="8"
+                     HeightRequest="8"
+                     Margin="0,5,0,0"
+                     VerticalOptions="Start"
+                     Fill="{StaticResource Accent}"
+                     IsVisible="{Binding IsUnread}" />
+
+            <VerticalStackLayout Grid.Column="1" Spacing="2">
+                <Label Text="{Binding Header}"
+                       FontSize="12.5"
+                       TextColor="{StaticResource Ink}"
+                       LineBreakMode="TailTruncation">
+                    <Label.Triggers>
+                        <DataTrigger TargetType="Label" Binding="{Binding IsUnread}" Value="True">
+                            <Setter Property="FontAttributes" Value="Bold" />
+                        </DataTrigger>
+                    </Label.Triggers>
+                </Label>
+
+                <Label Text="{Binding Meta}"
+                       FontSize="11"
+                       TextColor="{StaticResource Muted}"
+                       LineBreakMode="TailTruncation" />
+            </VerticalStackLayout>
+
+            <Label Grid.Column="2"
+                   Text="✓"
+                   FontSize="13"
+                   VerticalOptions="Start"
+                   TextColor="{StaticResource Accent}"
+                   IsVisible="{Binding IsSaved}" />
+
+        </Grid>
+    </DataTemplate>
+
+</ResourceDictionary>

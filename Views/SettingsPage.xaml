@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:KRemote.ViewModels"
+             x:Class="KRemote.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="14" Spacing="12">
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="This device" Style="{StaticResource Title}" />
+
+                    <Entry Text="{Binding DisplayName}"
+                           Placeholder="Display name (optional)"
+                           Style="{StaticResource FieldEntry}" />
+
+                    <Label Text="Shown to other devices instead of the machine name."
+                           Style="{StaticResource Subtle}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}" IsVisible="{Binding SupportsFolderChoice}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Received files" Style="{StaticResource Title}" />
+
+                    <Entry Text="{Binding DownloadsFolder}"
+                           IsReadOnly="True"
+                           Style="{StaticResource FieldEntry}" />
+
+                    <FlexLayout Wrap="Wrap">
+                        <Button Text="Browse…"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,0"
+                                Command="{Binding BrowseDownloadsCommand}" />
+
+                        <Button Text="Reset"
+                                Style="{StaticResource GhostButton}"
+                                Command="{Binding ResetDownloadsCommand}" />
+                    </FlexLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Sending several files" Style="{StaticResource Title}" />
+
+                    <RadioButton Content="Zip them into one archive"
+                                 IsChecked="{Binding UseZipMode}"
+                                 GroupName="MultiFile" />
+
+                    <RadioButton Content="Send as a group, one after another"
+                                 IsChecked="{Binding UseGroupedMode}"
+                                 GroupName="MultiFile" />
+
+                    <Label Text="Group timeout (seconds)" Style="{StaticResource Subtle}" />
+
+                    <Entry Text="{Binding GroupTimeoutSeconds}"
+                           Keyboard="Numeric"
+                           Style="{StaticResource FieldEntry}" />
+
+                    <Label Text="How long to wait for the rest of a group before showing what arrived."
+                           Style="{StaticResource Subtle}"
+                           IsVisible="{Binding GroupTimeoutValid}" />
+
+                    <Label Text="Enter a whole number of seconds greater than zero."
+                           Style="{StaticResource DangerText}"
+                           IsVisible="{Binding GroupTimeoutValid, Converter={StaticResource Not}}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Notifications" Style="{StaticResource Title}" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="Show a notification" Style="{StaticResource Body}" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding NotifyToast}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding SupportsSound}">
+                        <Label Grid.Column="0" Text="Play a sound" Style="{StaticResource Body}" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding NotifySound}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding SupportsWindowFlash}">
+                        <Label Grid.Column="0" Text="Flash the taskbar" Style="{StaticResource Body}" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding NotifyTaskbarFlash}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="Show an unread badge" Style="{StaticResource Body}" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding NotifyUnreadBadge}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="PIN protection" Style="{StaticResource Title}" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0"
+                               Text="Require a PIN to send to this device"
+                               Style="{StaticResource Body}"
+                               VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding PinEnabled}" />
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="8" IsVisible="{Binding PinEnabled}">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Entry Grid.Column="0"
+                                   Text="{Binding Pin}"
+                                   Placeholder="4 digits"
+                                   MaxLength="4"
+                                   Keyboard="Numeric"
+                                   Style="{StaticResource FieldEntry}" />
+
+                            <Button Grid.Column="1"
+                                    Text="Copy"
+                                    Style="{StaticResource GhostButton}"
+                                    Command="{Binding CopyPinCommand}" />
+                        </Grid>
+
+                        <Label Text="{Binding PinHint}" Style="{StaticResource Subtle}" IsVisible="{Binding PinValid}" />
+                        <Label Text="{Binding PinHint}" Style="{StaticResource DangerText}" IsVisible="{Binding PinValid, Converter={StaticResource Not}}" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Where things are kept" Style="{StaticResource Title}" />
+                    <Label Text="{Binding SettingsLocation}" Style="{StaticResource Subtle}" />
+                    <Label Text="{Binding MessagesLocation}" Style="{StaticResource Subtle}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="{Binding Status}" Style="{StaticResource Subtle}" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

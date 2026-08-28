@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:KRemote.ViewModels"
+             xmlns:models="clr-namespace:KRemote.Models"
+             x:Class="KRemote.Views.SharePage"
+             x:DataType="vm:ShareViewModel"
+             Title="New message">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="14" Spacing="12">
+
+            <Border Style="{StaticResource CardBorder}"
+                    BackgroundColor="#FDECEA"
+                    Stroke="{StaticResource Danger}"
+                    IsVisible="{Binding HasError}">
+                <Label Text="{Binding Error}" Style="{StaticResource DangerText}" />
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <VerticalStackLayout Spacing="8">
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Grid.Column="0"
+                               Text="Devices"
+                               Style="{StaticResource Title}"
+                               VerticalOptions="Center" />
+
+                        <Button Grid.Column="1"
+                                Text="Scan"
+                                Style="{StaticResource GhostButton}"
+                                IsEnabled="{Binding IsScanning, Converter={StaticResource Not}}"
+                                Command="{Binding ScanCommand}" />
+                    </Grid>
+
+                    <ProgressBar Progress="{Binding ScanProgress}"
+                                 ProgressColor="{StaticResource Accent}"
+                                 IsVisible="{Binding IsScanning}" />
+
+                    <CollectionView ItemsSource="{Binding Peers}"
+                                    SelectedItem="{Binding SelectedPeer, Mode=TwoWay}"
+                                    SelectionMode="Single"
+                                    HeightRequest="150"
+                                    IsVisible="{Binding HasPeers}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:Peer">
+                                <Grid Padding="10,8" ColumnDefinitions="*,Auto">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                        <Label Text="{Binding Label}"
+                                               FontSize="12.5"
+                                               TextColor="{StaticResource Ink}" />
+                                        <Label Text="{Binding Address}"
+                                               FontSize="11"
+                                               TextColor="{StaticResource Muted}" />
+                                    </VerticalStackLayout>
+
+                                    <Label Grid.Column="1"
+                                           Text="PIN"
+                                           FontSize="10"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource Accent}"
+                                           IsVisible="{Binding IsProtected}" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <Label Text="{Binding ScanStatus}" Style="{StaticResource Subtle}" />
+                    <Label Text="{Binding TargetLabel}" Style="{StaticResource Subtle}" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}" IsVisible="{Binding NeedsUnlock}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="This device is PIN protected." Style="{StaticResource Title}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Entry Grid.Column="0"
+                               Text="{Binding PinEntry}"
+                               Placeholder="4-digit PIN"
+                               MaxLength="4"
+                               Keyboard="Numeric"
+                               IsPassword="True"
+                               Style="{StaticResource FieldEntry}" />
+
+                        <Button Grid.Column="1"
+                                Text="Unlock"
+                                Style="{StaticResource PrimaryButton}"
+                                Command="{Binding UnlockCommand}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}" IsVisible="{Binding CanCompose}">
+                <VerticalStackLayout Spacing="8">
+
+                    <Label Text="Message" Style="{StaticResource Title}" />
+
+                    <Entry Text="{Binding Title}"
+                           Placeholder="Title (optional)"
+                           Style="{StaticResource FieldEntry}" />
+
+                    <Editor Text="{Binding Text}"
+                            Placeholder="Type or paste your text here"
+                            HeightRequest="140"
+                            Style="{StaticResource FieldEditor}" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Grid.Column="0"
+                               Text="Attachments"
+                               Style="{StaticResource Title}"
+                               VerticalOptions="Center" />
+
+                        <Button Grid.Column="1"
+                                Text="Attach files…"
+                                Style="{StaticResource GhostButton}"
+                                Command="{Binding AttachCommand}" />
+                    </Grid>
+
+                    <CollectionView ItemsSource="{Binding Attachments}"
+                                    IsVisible="{Binding HasAttachments}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:StagedAttachment">
+                                <Grid Padding="6" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <Label Grid.Column="0"
+                                           Text="{Binding FileName}"
+                                           FontSize="12.5"
+                                           VerticalOptions="Center"
+                                           LineBreakMode="MiddleTruncation" />
+
+                                    <Label Grid.Column="1"
+                                           Text="{Binding SizeText}"
+                                           FontSize="11"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource Muted}" />
+
+                                    <Button Grid.Column="2"
+                                            Text="✕"
+                                            Padding="8,2"
+                                            FontSize="11"
+                                            Style="{StaticResource GhostButton}"
+                                            CommandParameter="{Binding .}"
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ShareViewModel}}, Path=RemoveAttachmentCommand}" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <VerticalStackLayout Spacing="4" IsVisible="{Binding IsSending}">
+                        <ProgressBar Progress="{Binding TransferProgress}"
+                                     ProgressColor="{StaticResource Accent}" />
+                        <Label Text="{Binding TransferStatus}" Style="{StaticResource Subtle}" />
+                        <Label Text="{Binding TransferSpeed}" Style="{StaticResource Subtle}" />
+                    </VerticalStackLayout>
+
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="1"
+                                Text="Cancel"
+                                Style="{StaticResource GhostButton}"
+                                Command="{Binding CancelCommand}" />
+
+                        <Button Grid.Column="2"
+                                Text="Send"
+                                Style="{StaticResource PrimaryButton}"
+                                IsEnabled="{Binding IsSending, Converter={StaticResource Not}}"
+                                Command="{Binding SendCommand}" />
+                    </Grid>
+
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

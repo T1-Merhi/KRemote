@@ -1,14 +1,22 @@
 using System.IO;
 using System.Net.Sockets;
 using KRemote.Models;
+using KRemote.Platform;
 
 namespace KRemote.Net;
 
-public static class PeerSender
+public sealed class PeerSender
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
 
-    public static async Task SendTextAsync(
+    private readonly IDeviceIdentity _identity;
+
+    public PeerSender(IDeviceIdentity identity)
+    {
+        _identity = identity;
+    }
+
+    public async Task SendTextAsync(
         string address, string? displayName, string? title, string text, CancellationToken ct, string? pin = null)
     {
         using var client = await ConnectAsync(address, ct);
@@ -17,18 +25,18 @@ public static class PeerSender
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var frame = Frame.TextMessage(Environment.MachineName, displayName, title, text, pin);
+        var frame = Frame.TextMessage(_identity.MachineName, displayName, title, text, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(frame), timeout.Token);
 
         await ExpectAsync(stream, "ok", timeout);
     }
 
-    public static Task SendFileAsync(
+    public Task SendFileAsync(
         string address, string? displayName, string? title, string filePath,
         IProgress<long>? progress, CancellationToken ct, string? pin = null) =>
         SendFileAsync(address, displayName, title, null, filePath, progress, ct, null, null, null, pin);
 
-    private static async Task SendFileAsync(
+    private async Task SendFileAsync(
         string address, string? displayName, string? title, string? text, string filePath,
         IProgress<long>? progress, CancellationToken ct,
         string? groupId, int? groupCount, int? groupIndex, string? pin)
@@ -46,7 +54,9 @@ public static class PeerSender
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var header = Frame.FileHeader(Environment.MachineName, displayName, title, fileName, size, text, groupId, groupCount, groupIndex, pin);
+        var header = Frame.FileHeader(
+            _identity.MachineName, displayName, title, fileName, size,
+            text, groupId, groupCount, groupIndex, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(header), timeout.Token);
 
         await ExpectAsync(stream, "ready", timeout);
@@ -72,7 +82,7 @@ public static class PeerSender
         await ExpectAsync(stream, "ok", timeout);
     }
 
-    public static async Task SendFilesAsync(
+    public async Task SendFilesAsync(
         string address, string? displayName, string? title, string? text,
         IReadOnlyList<string> filePaths, MultiFileSendMode mode,
         IProgress<(int fileIndex, int fileCount, long sent, long total)>? progress, CancellationToken ct, string? pin = null)
@@ -113,7 +123,7 @@ public static class PeerSender
         }
     }
 
-    public static async Task VerifyPinAsync(string address, string pin, CancellationToken ct)
+    public async Task VerifyPinAsync(string address, string pin, CancellationToken ct)
     {
         using var client = await ConnectAsync(address, ct);
         using var stream = client.GetStream();

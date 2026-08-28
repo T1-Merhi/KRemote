@@ -1,6 +1,5 @@
 using System.IO;
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
 using KRemote.Models;
@@ -13,12 +12,14 @@ public static class PeerScanner
     private const int HandshakeTimeoutMs = 800;
     private const int MaxConcurrentProbes = 128;
 
-    public static async Task<List<Peer>> ScanAsync(
+    public static async Task SweepAsync(
+        IProgress<Peer>? found,
         IProgress<(int done, int total)>? progress,
         CancellationToken ct)
     {
-        var (candidates, ownAddresses) = BuildCandidates();
-        var found = new List<Peer>();
+        var candidates = LocalNetwork.SubnetCandidates();
+        var own = LocalNetwork.OwnAddresses();
+
         var gate = new SemaphoreSlim(MaxConcurrentProbes);
         var done = 0;
         var total = candidates.Count;
@@ -30,11 +31,10 @@ public static class PeerScanner
             await gate.WaitAsync(ct);
             try
             {
+                if (own.Contains(ip.ToString())) return;
+
                 var peer = await ProbeAsync(ip, ct);
-                if (peer is not null)
-                {
-                    lock (found) found.Add(peer);
-                }
+                if (peer is not null) found?.Report(peer);
             }
             finally
             {
@@ -44,41 +44,6 @@ public static class PeerScanner
         });
 
         await Task.WhenAll(probes);
-
-        return found
-            .Where(p => !ownAddresses.Contains(p.Address))
-            .OrderBy(p => p.MachineName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    private static (List<IPAddress> candidates, HashSet<string> own) BuildCandidates()
-    {
-        var candidates = new List<IPAddress>();
-        var seen = new HashSet<string>();
-        var own = new HashSet<string>();
-
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (nic.OperationalStatus != OperationalStatus.Up) continue;
-            if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
-
-            foreach (var info in nic.GetIPProperties().UnicastAddresses)
-            {
-                if (info.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                if (IPAddress.IsLoopback(info.Address)) continue;
-
-                var octets = info.Address.GetAddressBytes();
-                own.Add(info.Address.ToString());
-
-                for (var host = 1; host <= 254; host++)
-                {
-                    var candidate = new IPAddress([octets[0], octets[1], octets[2], (byte)host]);
-                    if (seen.Add(candidate.ToString())) candidates.Add(candidate);
-                }
-            }
-        }
-
-        return (candidates, own);
     }
 
     private static async Task<Peer?> ProbeAsync(IPAddress ip, CancellationToken ct)

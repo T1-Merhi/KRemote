@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:KRemote.ViewModels"
+             x:Class="KRemote.Views.InboxPage"
+             x:DataType="vm:InboxViewModel"
+             Title="Inbox">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="14" RowSpacing="10">
+
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+            <Label Grid.Column="0"
+                   Text="Inbox"
+                   Style="{StaticResource Title}"
+                   VerticalOptions="Center" />
+
+            <Border Grid.Column="1"
+                    BackgroundColor="{StaticResource Danger}"
+                    StrokeThickness="0"
+                    Padding="6,1"
+                    VerticalOptions="Center"
+                    IsVisible="{Binding HasUnread}"
+                    StrokeShape="RoundRectangle 8">
+                <Label Text="{Binding UnreadBadge}"
+                       FontSize="11"
+                       TextColor="White" />
+            </Border>
+
+            <Button Grid.Column="3"
+                    Text="New message"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding ComposeCommand}" />
+        </Grid>
+
+        <Border Grid.Row="0"
+                Grid.RowSpan="3"
+                IsVisible="{Binding HasListenError}"
+                BackgroundColor="#FDECEA"
+                Stroke="{StaticResource Danger}"
+                StrokeThickness="1"
+                Padding="10"
+                VerticalOptions="End"
+                StrokeShape="RoundRectangle 6">
+            <Label Text="{Binding ListenBanner}" Style="{StaticResource DangerText}" />
+        </Border>
+
+        <Grid Grid.Row="1" x:Name="BodyGrid" ColumnDefinitions="*,*" ColumnSpacing="12">
+
+            <Border Grid.Column="0"
+                    Style="{StaticResource CardBorder}"
+                    Padding="4"
+                    IsVisible="{Binding ShowList}">
+                <Grid>
+                    <CollectionView ItemsSource="{Binding Items}"
+                                    SelectedItem="{Binding Selected, Mode=TwoWay}"
+                                    SelectionMode="Single"
+                                    ItemTemplate="{StaticResource MessageRow}" />
+
+                    <Label Text="Nothing received yet. Messages sent to this device land here."
+                           Style="{StaticResource EmptyStateText}"
+                           VerticalOptions="Center"
+                           Margin="20"
+                           IsVisible="{Binding IsEmpty}" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Style="{StaticResource CardBorder}"
+                    IsVisible="{Binding ShowDetail}">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+
+                    <Button Grid.Row="0"
+                            Text="← Back"
+                            Style="{StaticResource GhostButton}"
+                            HorizontalOptions="Start"
+                            IsVisible="{Binding ShowBack}"
+                            Command="{Binding BackCommand}" />
+
+                    <ScrollView Grid.Row="1">
+                        <Label Text="{Binding Detail}"
+                               Style="{StaticResource Body}"
+                               LineBreakMode="WordWrap" />
+                    </ScrollView>
+
+                    <Label Grid.Row="1"
+                           Text="Select a message to read it."
+                           Style="{StaticResource EmptyStateText}"
+                           VerticalOptions="Center"
+                           IsVisible="{Binding HasNoSelection}" />
+
+                    <FlexLayout Grid.Row="2"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                IsVisible="{Binding HasSelection}">
+                        <Button Text="Open"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SelectionIsFile}"
+                                Command="{Binding OpenCommand}" />
+
+                        <Button Text="Show in folder"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SupportsReveal}"
+                                Command="{Binding RevealCommand}" />
+
+                        <Button Text="Share"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SupportsShare}"
+                                Command="{Binding ShareCommand}" />
+
+                        <Button Text="Copy"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                Command="{Binding CopyCommand}" />
+
+                        <Button Text="Save"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsEnabled="{Binding CanSaveSelected}"
+                                Command="{Binding SaveCommand}" />
+
+                        <Button Text="Delete"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                Command="{Binding DeleteCommand}" />
+                    </FlexLayout>
+
+                </Grid>
+            </Border>
+
+        </Grid>
+
+        <VerticalStackLayout Grid.Row="2" Spacing="2">
+            <Label Text="{Binding TransferStatus}"
+                   Style="{StaticResource Subtle}"
+                   IsVisible="{Binding IsTransferring}" />
+            <Label Text="{Binding Status}" Style="{StaticResource Subtle}" />
+        </VerticalStackLayout>
+
+    </Grid>
+
+</ContentPage>

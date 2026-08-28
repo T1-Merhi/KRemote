@@ -1,178 +1,158 @@
 # KRemote
 
-Send text or a file from one PC to another on the same local network.
+Send text or files between your devices on the same local network — PC to PC,
+phone to PC, PC to phone.
 
-Open KRemote on both PCs, press **Scan network**, pick the other PC from the list,
-then either type your text and press **Submit**, or press **Send file…** and choose
-one. It lands in that PC's inbox. Every message can carry an optional **title**.
+Open KRemote on both devices, press **Scan**, pick the other device from the list,
+then type your text or attach files and press **Send**. It lands in that device's
+inbox. Every message can carry an optional **title**.
 
 Files stream in 64 KB chunks with no size limit — a 220 MB file moves in half a
 second over a wired LAN, and the app's memory use does not move at all.
 
-There is no server, no account, and no internet involved — the two apps talk
-directly to each other over your LAN.
+There is no server, no account, and no internet involved — the apps talk directly
+to each other over your LAN.
+
+---
+
+## Platforms
+
+| Platform | Status | Notes |
+| --- | --- | --- |
+| Windows 10/11 | Supported | Installed as an MSIX package |
+| Android 5.0+ | Supported | Receives only while the app is open — see [Android](#android) |
+| iOS | Not yet | The target is written but disabled; enabling it needs a Mac |
 
 ---
 
 ## Requirements
 
-**To install and run it:** Windows 10 or 11, 64-bit. Nothing else — the installer
-carries its own copy of .NET, so a bare Windows machine works.
+**To run it:** Windows 10 or 11 (64-bit), or an Android 5.0+ device.
 
-**To build it from source:** the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
-Building the *installer* additionally needs Inno Setup 6:
+**To build it from source:** the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+plus the MAUI workload:
 
-```powershell
-winget install --id JRSoftware.InnoSetup --source winget
+```bash
+dotnet workload install maui
 ```
 
-Both PCs must be on the **same network and subnet** (e.g. both `192.168.1.x`).
+Android builds additionally need a JDK 17 and the Android SDK. Installing Visual
+Studio 2022 with the *.NET Multi-platform App UI development* workload provides
+all of it in one step.
+
+All devices must be on the **same network and subnet** (e.g. all `192.168.1.x`).
 
 ---
 
 ## Install
 
-Two ways in, and you can mix them — installed on one PC, run from source on the
-other. They are the same app and talk to each other either way.
+### Windows
 
-### Option A — the installer (recommended)
+Build and install the MSIX package:
 
-Run **`dist\KRemote-Setup-1.1.0.exe`** and click through it. It:
-
-- installs to `%LocalAppData%\Programs\KRemote` **without an admin prompt**,
-- puts a **KRemote shortcut on your desktop** and in the Start Menu,
-- offers to add the Windows Firewall rule for port 5555 (this one step asks for
-  admin — see [Firewall](#firewall) below),
-- registers a proper uninstaller in *Apps & features*.
-
-To set up the second PC, copy that single `KRemote-Setup-1.1.0.exe` onto it (USB
-stick, shared folder, whatever) and run it there. It needs nothing preinstalled.
-
-Silent install, if you prefer:
-
-```powershell
-.\dist\KRemote-Setup-1.1.0.exe /VERYSILENT /NORESTART /TASKS="desktopicon,firewallrule"
+```bash
+dotnet publish -f net9.0-windows10.0.19041.0 -c Release
 ```
 
-To uninstall: *Settings → Apps → KRemote → Uninstall*, or run
-`%LocalAppData%\Programs\KRemote\unins000.exe`. Saved inbox messages are left
-behind on purpose; delete `%AppData%\KRemote` if you want them gone too.
+The package declares the **`privateNetworkClientServer`** capability, so Windows
+grants it access to the local network at install time. There is no firewall script
+to run and no admin prompt for networking.
 
-### Option B — run from source
+### Android
 
-```powershell
-cd d:\repos\KRemote
-dotnet run
+```bash
+dotnet build -f net9.0-android -c Release -t:Run
 ```
 
-This needs the .NET 9 SDK and creates no shortcut — it just runs the app.
+Or produce an APK with `dotnet publish -f net9.0-android -c Release` and sideload it.
 
-### Building the installer yourself
+### Run from source
 
-```powershell
-powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
-```
-
-It publishes the app self-contained into `publish\`, then compiles
-`installer\KRemote.iss` into `dist\KRemote-Setup-<version>.exe` (about 43 MB).
-Pass `-Version 1.2.0` to stamp a different version, or `-SkipPublish` to reuse
-the existing `publish\` output.
-
-### Firewall
-
-KRemote listens on **TCP port 5555**, and Windows blocks that by default. The
-installer's *"Allow KRemote through Windows Firewall"* task handles it — it is
-ticked by default and asks for one admin confirmation. **This is what makes a PC
-findable**; without it, the other PC's scan comes back empty.
-
-If you skipped it, or you are running from source, either accept the Windows
-Firewall prompt on first launch (tick **Private networks**), or add the rule
-directly:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File installer\firewall.ps1 -Action Add -ExePath "$env:LOCALAPPDATA\Programs\KRemote\KRemote.exe"
-```
-
-That script elevates itself, and `-Action Remove` takes the rule back out. It logs
-what it did to `%TEMP%\KRemote-firewall.log`. Do this on both PCs.
-
-**Checking whether the rule exists needs an elevated shell.** From a normal
-PowerShell, `Get-NetFirewallRule` fails with *"Access is denied"* — and with
-`-ErrorAction SilentlyContinue` that looks exactly like the rule being absent.
-Run this **as administrator**:
-
-```powershell
-Get-NetFirewallRule -DisplayName KRemote | Get-NetFirewallPortFilter
+```bash
+dotnet build -f net9.0-windows10.0.19041.0
 ```
 
 ---
 
 ## Using it
 
-The window has three panes.
+The app has three tabs.
 
-### 1. Devices (left)
+### Inbox
 
-Press **Scan network**. KRemote probes every address in your subnet
-(`192.168.1.1` → `192.168.1.254`, for whatever your subnet actually is) and lists
-the PCs that answer, by Windows machine name. A sweep takes about one second.
+Whatever arrives is appended here, newest first. Unread messages carry a dot and a
+bold title; the tab shows an unread count badge.
 
-The list is a snapshot, not a live feed — press **Scan network** again after
-starting the app on the other PC.
-
-Your own PC never appears in its own list.
-
-### 2. Send (top right)
-
-Click a device in the list, then send one of two things:
-
-- **Text** — type or paste into the editor and press **Submit** (or **Ctrl+Enter**).
-- **A file** — press **Send file…**, pick one file, and it starts immediately. A
-  progress bar shows percent, bytes and, when it finishes, the transfer rate.
-
-**Title** is optional and applies to both. Whatever you type there becomes the bold
-line for that message in the receiver's inbox; leave it empty and the inbox falls
-back to the first line of the text, or the file's name.
-
-The status line tells you what happened: `Sent to DESKTOP-B at 14:22:07`, or the
-reason it failed. The editor and title clear themselves only after a successful
-send, so nothing is lost if the other PC is unreachable.
-
-One send goes to one selected device, one file at a time.
-
-### 3. Inbox (bottom right)
-
-Whatever arrives is appended to the inbox, newest first. Arrival is **silent** — no
-popup, no window stealing focus, no sound. The only exception is that an incoming
-file shows live progress on the inbox line, because a large transfer would
-otherwise look like nothing happening.
-
-Click an item to see it on the right: the full text, or the file's name, size,
-sender and path.
+Select a message to read it. On a wide window the list and the message sit side by
+side; on a narrow window or a phone the list fills the screen and selecting a
+message opens it with a **Back** button.
 
 | Button | What it does |
 | --- | --- |
-| **Open** | Opens the received file in whatever it is associated with. Files only. |
-| **Show in folder** | Opens Explorer with the file selected. Files only. |
-| **Copy** | Copies the message text — or, for a file, its full path. |
-| **Save** | Keeps this row so it comes back next time you open KRemote. |
-| **Delete** | Removes the row from the inbox. |
+| **Open** | Opens a received file in whatever it is associated with |
+| **Show in folder** | Opens the file's folder with it selected. Windows only |
+| **Share** | Hands the file to the system share sheet. Android only |
+| **Copy** | Copies the message text — or, for a file, its full path |
+| **Save** | Keeps this row so it comes back next time you open KRemote |
+| **Delete** | Removes the row from the inbox |
 
 **The inbox is memory-only by default.** Any row you have not pressed **Save** on is
-gone when you close the app. Saved rows reload on the next launch and are marked
-`saved`.
+gone when you close the app. Saved rows reload on the next launch.
 
-```
-%AppData%\KRemote\saved-messages.json     saved inbox rows
-%UserProfile%\Downloads\KRemote\          received files
-```
-
-**Deleting a file's row never deletes the file.** The bytes are already on disk in
-`Downloads\KRemote`; the row is just the inbox entry. Use **Show in folder** if you
-want to remove the file itself.
+**Deleting a file's row never deletes the file.** The bytes are already on disk;
+the row is just the inbox entry.
 
 Received files never overwrite anything. A second `report.pdf` is saved as
 `report (2).pdf`.
+
+### Saved
+
+The same list filtered to saved messages only, with **Unsave** in place of Save.
+
+### New message
+
+Press **New message** on the Inbox tab.
+
+1. Press **Scan** to find devices. Results appear as they are found.
+2. Pick a device. If it shows **PIN**, enter its 4-digit PIN and press **Unlock**.
+3. Type text, attach files, or both, then press **Send**.
+
+**Title** is optional and applies to both text and files. Whatever you type becomes
+the bold line for that message in the receiver's inbox; leave it empty and the inbox
+falls back to the first line of the text, or the file's name.
+
+A progress bar shows percent, bytes and the transfer rate while files move.
+
+### Settings
+
+Display name, where received files go (Windows), how several files are sent (one zip
+or a group), notification preferences, and PIN protection.
+
+Options that do not apply to the running platform are hidden rather than shown
+disabled — Android has no downloads-folder picker, no sound option and no taskbar
+flash.
+
+---
+
+## Where things are kept
+
+**Windows** (MSIX apps are redirected to the package's private store):
+
+```
+%LocalAppData%\Packages\<package>\LocalCache\Roaming\KRemote\
+%UserProfile%\Downloads\KRemote\           received files
+```
+
+**Android:**
+
+```
+<app data>/settings.json, saved-messages.json
+<app data>/Received/                       received files
+```
+
+Android received files live in app-private storage. Use **Share** or **Open** to get
+them anywhere else — this needs no storage permission and works on every Android
+version.
 
 ---
 
@@ -180,27 +160,30 @@ Received files never overwrite anything. A second `report.pdf` is saved as
 
 Both halves live in the same app — every instance listens and can send.
 
-- **Port**: TCP 5555, on every instance.
-- **Discovery**: an active subnet scan. Pressing *Scan network* opens a short TCP
-  connection to port 5555 on all 254 host addresses of each local IPv4 `/24`, at up
-  to 128 probes in parallel, and sends a `ping`. Anything that replies `pong` with
-  its machine name is a running KRemote. There are no background broadcasts or
-  announcements — nothing is sent until you press the button.
+- **Port**: TCP 5555 for messages, UDP 5556 for discovery.
+- **Discovery**: two mechanisms run at once. A **UDP broadcast** to port 5556 gets
+  near-instant replies from other KRemote apps. Alongside it, a **TCP subnet sweep**
+  opens a short connection to port 5555 on all 254 host addresses of each local IPv4
+  `/24`, at up to 128 probes in parallel. The sweep is what keeps older KRemote 1.1.0
+  desktops discoverable. Results are merged and deduplicated by address. Nothing is
+  sent until you press Scan.
 - **Messages**: a newline-delimited UTF-8 JSON header over TCP, one exchange per
-  connection. The receiver replies `ok`, which is what turns into the "Sent"
-  confirmation on the sender's side.
+  connection. The receiver replies `ok`.
 
 ```
-scan   →  {"type":"ping"}
-       ←  {"type":"pong","name":"DESKTOP-B"}
+discover  →  {"type":"discover"}                       (UDP broadcast)
+          ←  {"type":"pong","name":"DESKTOP-B"}        (UDP unicast reply)
 
-text   →  {"type":"text","name":"DESKTOP-A","title":"Notes","text":"hello"}
-       ←  {"type":"ok"}
+scan      →  {"type":"ping"}                           (TCP fallback)
+          ←  {"type":"pong","name":"DESKTOP-B"}
 
-file   →  {"type":"file","name":"DESKTOP-A","fileName":"a.pdf","size":41234}
-       ←  {"type":"ready"}
-       →  <exactly `size` raw bytes>
-       ←  {"type":"ok"}
+text      →  {"type":"text","name":"DESKTOP-A","title":"Notes","text":"hello"}
+          ←  {"type":"ok"}
+
+file      →  {"type":"file","name":"DESKTOP-A","fileName":"a.pdf","size":41234}
+          ←  {"type":"ready"}
+          →  <exactly `size` raw bytes>
+          ←  {"type":"ok"}
 ```
 
 Text rides inside the JSON, which escapes newlines and keeps the framing intact, so
@@ -211,26 +194,32 @@ time, so a multi-gigabyte file never exists in memory on either side.
 Three details make that safe rather than merely fast:
 
 - The receiver answers `ready` **before** the first byte moves, so it can refuse a
-  transfer (unwritable folder, nonsense size) without the sender having pushed the
-  whole file first.
+  transfer without the sender having pushed the whole file first.
 - Bytes land in a `.part` file that is renamed only on success. An interrupted
-  transfer leaves nothing behind, rather than a truncated file that looks real.
+  transfer leaves nothing behind.
 - The stall timeout (60 s) is refreshed per chunk. It limits *silence*, not the
   duration of the transfer, so a slow link is never killed for being slow.
 
+### Android
+
+Android suspends network listeners for backgrounded apps, so **a phone receives only
+while KRemote is open on screen**. The listener starts when the app resumes and stops
+when it is backgrounded. A phone that is not open will not appear in another device's
+scan. Sending from the phone always works.
+
 ### Security
 
-There is **no passcode and no encryption**. Any KRemote instance that can reach port
-5555 on your PC can put text in your inbox **and write a file into
-`Downloads\KRemote`**, and everything crosses the network in plain form. That is a
-deliberate trade for zero setup — use it on a network you trust (your home or office
-LAN), not on public Wi-Fi.
+There is **optional PIN protection and no encryption**. With no PIN, any KRemote
+instance that can reach port 5555 can put text in your inbox and write a file into
+your received-files folder. With a PIN, senders must present the correct 4 digits
+first. Everything crosses the network in plain form either way — use it on a network
+you trust, not on public Wi-Fi.
 
 Incoming file names are never trusted. Every directory component is stripped before
 the name is used, so `..\..\Windows\System32\evil.dll` is written as `evil.dll`
-inside the downloads folder and cannot escape it. Invalid characters are replaced,
-Windows reserved names (`CON`, `NUL`, `COM1`…) are prefixed, and nothing is ever
-executed — files are only written to disk.
+inside the received-files folder and cannot escape it. Invalid characters are
+replaced, Windows reserved names (`CON`, `NUL`, `COM1`…) are prefixed, and nothing is
+ever executed — files are only written to disk.
 
 ---
 
@@ -238,18 +227,14 @@ executed — files are only written to disk.
 
 | Symptom | Cause and fix |
 | --- | --- |
-| Scan finds nothing | KRemote is not open on the other PC, or the firewall rule is missing there. See [Firewall](#firewall). |
-| Scan finds nothing, firewall is fine | The two PCs are on different subnets (e.g. one on Wi-Fi `192.168.1.x`, one on Ethernet `192.168.0.x`). Check with `ipconfig` on both — the first three numbers must match. |
-| `Port 5555 is already in use…` in the bottom-left | A second copy of KRemote is already running on this PC. Close it. Until you do, this window can send but not receive. |
-| `Could not send…: No connection could be made` | The other app was closed after your last scan. Scan again. |
-| Guest/public Wi-Fi does not work | Many public and guest networks isolate clients from each other, which blocks all direct PC-to-PC traffic. Nothing in the app can work around that. |
-| Message arrived but I did not notice | By design — arrival is silent. Check the inbox pane. |
-| Where did the file go? | `%UserProfile%\Downloads\KRemote`. Select the row and press **Show in folder**. |
-| I deleted the row but the file is still there | Correct — Delete removes the inbox entry, never the downloaded file. Delete the file from Explorer. |
-| A transfer died partway | Nothing is left behind; the partial `.part` file is discarded. Send it again. |
-| File arrived with `(2)` in the name | A file of that name already existed. KRemote never overwrites. |
-| Installer says the app is already installed | Run the uninstaller first, or just install over the top — the version is upgraded in place. |
-| `Get-NetFirewallRule` says the rule is missing | You are querying from a non-elevated shell, where the call fails with "Access is denied" rather than reporting the truth. Re-run it as administrator. |
+| Scan finds nothing | KRemote is not open on the other device, or a firewall is blocking it there |
+| Scan finds nothing, firewall is fine | The devices are on different subnets. Check that the first three numbers of their addresses match |
+| Phone does not appear in a PC's scan | The phone's app is backgrounded. Android only listens while the app is open |
+| `Port 5555 is already in use` | A second copy is already running on this device. Close it. Until you do, this window can send but not receive |
+| Guest/public Wi-Fi does not work | Many public networks isolate clients from each other, which blocks all direct device-to-device traffic |
+| Where did the file go? | Windows: `%UserProfile%\Downloads\KRemote`. Android: app storage — use **Share** or **Open** |
+| I deleted the row but the file is still there | Correct — Delete removes the inbox entry, never the downloaded file |
+| A transfer died partway | Nothing is left behind; the partial `.part` file is discarded. Send it again |
 
 ---
 
@@ -257,27 +242,48 @@ executed — files are only written to disk.
 
 ```
 KRemote.sln
-KRemote.csproj          WPF app, net9.0-windows
-KRemote.ico             App and shortcut icon
-App.xaml                Application resources and control styles
-MainWindow.xaml(.cs)    The three panes and all UI behavior
+KRemote.csproj          MAUI single project, net9.0-android + net9.0-windows
+App.xaml(.cs)           Application, resources, listener lifecycle
+AppShell.xaml(.cs)      Inbox / Saved / Settings tabs and routes
+MauiProgram.cs          Dependency injection wiring
 Models/
-  Peer.cs               A discovered PC: machine name + address
-  InboxMessage.cs       A received text or file, with its saved/unsaved state
+  Peer.cs               A discovered device
+  InboxMessage.cs       A received text or file
+  InboxAttachment.cs    One file within a received group
+  StagedAttachment.cs   One file queued for sending
+  AppSettings.cs        Everything the Settings tab writes
 Net/
-  Protocol.cs           Port, frame shapes, chunk size, timeouts
+  Protocol.cs           Ports, frame shapes, chunk size, timeouts
   LineIO.cs             Unbuffered header reads, so file bytes are never swallowed
   PeerServer.cs         Listener: answers probes, receives text and streams files in
-  PeerScanner.cs        Subnet sweep
-  PeerSender.cs         Sends one message or one file to one peer
+  PeerBeacon.cs         UDP discovery responder and broadcaster
+  PeerScanner.cs        TCP subnet sweep
+  Discovery.cs          Runs beacon and sweep together, deduplicated
+  LocalNetwork.cs       Network interface enumeration shared by both
+  PeerSender.cs         Sends messages and files to one peer
+  PinManager.cs         Per-session unlock state
+Platform/
+  I*.cs                 Device identity, storage paths, notifier, file actions,
+                        folder picker — the platform seams
+  *.cs                  Shared implementations, per-platform via #if
+Platforms/
+  Windows/              WinUI head, MSIX manifest, toast and taskbar flash
+  Android/              Activity, application, manifest, notification channel
+Services/
+  InboxService.cs       The one message collection, plus server lifecycle
+  SettingsService.cs    Live settings and persistence
+ViewModels/
+  MessageListViewModel  Shared behavior behind the Inbox and Saved tabs
+  InboxViewModel.cs     Inbox specifics: unread badge, transfer status, save
+  SavedViewModel.cs     Saved specifics: filter and unsave
+  ShareViewModel.cs     Scan, PIN gate, attachments, send
+  SettingsViewModel.cs  Every setting, with per-platform visibility
+Views/
+  *.xaml(.cs)           One adaptive layout per page, wide and narrow
+  AdaptiveLayout.cs     The width rule shared by the two list pages
 Storage/
   MessageStore.cs       Reads and writes saved-messages.json
-installer/
-  build-installer.ps1   Publish + compile in one command
-  KRemote.iss           Inno Setup script
-  firewall.ps1          Self-elevating firewall rule add/remove
-publish/                Self-contained build output (generated, ignored by git)
-dist/                   KRemote-Setup-<version>.exe (generated, ignored by git)
+  SettingsStore.cs      Reads and writes settings.json
 ```
 
 ---

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:KRemote.ViewModels"
+             x:Class="KRemote.Views.SavedPage"
+             x:DataType="vm:SavedViewModel"
+             Title="Saved">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="14" RowSpacing="10">
+
+        <Label Grid.Row="0" Text="Saved" Style="{StaticResource Title}" />
+
+        <Grid Grid.Row="1" x:Name="BodyGrid" ColumnDefinitions="*,*" ColumnSpacing="12">
+
+            <Border Grid.Column="0"
+                    Style="{StaticResource CardBorder}"
+                    Padding="4"
+                    IsVisible="{Binding ShowList}">
+                <Grid>
+                    <CollectionView ItemsSource="{Binding Items}"
+                                    SelectedItem="{Binding Selected, Mode=TwoWay}"
+                                    SelectionMode="Single"
+                                    ItemTemplate="{StaticResource MessageRow}" />
+
+                    <Label Text="Nothing saved yet. Press Save on an inbox message to keep it."
+                           Style="{StaticResource EmptyStateText}"
+                           VerticalOptions="Center"
+                           Margin="20"
+                           IsVisible="{Binding IsEmpty}" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Style="{StaticResource CardBorder}"
+                    IsVisible="{Binding ShowDetail}">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+
+                    <Button Grid.Row="0"
+                            Text="← Back"
+                            Style="{StaticResource GhostButton}"
+                            HorizontalOptions="Start"
+                            IsVisible="{Binding ShowBack}"
+                            Command="{Binding BackCommand}" />
+
+                    <ScrollView Grid.Row="1">
+                        <Label Text="{Binding Detail}"
+                               Style="{StaticResource Body}"
+                               LineBreakMode="WordWrap" />
+                    </ScrollView>
+
+                    <Label Grid.Row="1"
+                           Text="Select a saved message to read it."
+                           Style="{StaticResource EmptyStateText}"
+                           VerticalOptions="Center"
+                           IsVisible="{Binding HasNoSelection}" />
+
+                    <FlexLayout Grid.Row="2"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                IsVisible="{Binding HasSelection}">
+                        <Button Text="Open"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SelectionIsFile}"
+                                Command="{Binding OpenCommand}" />
+
+                        <Button Text="Show in folder"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SupportsReveal}"
+                                Command="{Binding RevealCommand}" />
+
+                        <Button Text="Share"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding SupportsShare}"
+                                Command="{Binding ShareCommand}" />
+
+                        <Button Text="Copy"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                Command="{Binding CopyCommand}" />
+
+                        <Button Text="Unsave"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                Command="{Binding UnsaveCommand}" />
+
+                        <Button Text="Delete"
+                                Style="{StaticResource GhostButton}"
+                                Margin="0,0,6,6"
+                                Command="{Binding DeleteCommand}" />
+                    </FlexLayout>
+
+                </Grid>
+            </Border>
+
+        </Grid>
+
+        <Label Grid.Row="2" Text="{Binding Status}" Style="{StaticResource Subtle}" />
+
+    </Grid>
+
+</ContentPage>

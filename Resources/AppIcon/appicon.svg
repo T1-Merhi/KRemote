@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="kremotebg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3A82F5" />
+      <stop offset="1" stop-color="#1E4ED9" />
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" fill="url(#kremotebg)" />
+</svg>

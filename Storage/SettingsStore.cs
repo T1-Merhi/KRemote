@@ -1,26 +1,29 @@
 using System.IO;
 using System.Text.Json;
 using KRemote.Models;
+using KRemote.Platform;
 
 namespace KRemote.Storage;
 
 public sealed class SettingsStore
 {
-    private static readonly string Directory_ = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KRemote");
-
-    private static readonly string FilePath = Path.Combine(Directory_, "settings.json");
-
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    public string Location => FilePath;
+    private readonly IStoragePaths _paths;
+
+    public SettingsStore(IStoragePaths paths)
+    {
+        _paths = paths;
+    }
+
+    public string Location => Path.Combine(_paths.AppDataDirectory, "settings.json");
 
     public AppSettings Load()
     {
         try
         {
-            if (!File.Exists(FilePath)) return new AppSettings();
-            var json = File.ReadAllText(FilePath);
+            if (!File.Exists(Location)) return new AppSettings();
+            var json = File.ReadAllText(Location);
             return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
@@ -31,8 +34,8 @@ public sealed class SettingsStore
 
     public void Save(AppSettings settings)
     {
-        Directory.CreateDirectory(Directory_);
+        Directory.CreateDirectory(_paths.AppDataDirectory);
         var json = JsonSerializer.Serialize(settings, Options);
-        File.WriteAllText(FilePath, json);
+        File.WriteAllText(Location, json);
     }
 }

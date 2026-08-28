@@ -7,6 +7,8 @@ public static class Protocol
 {
     public const int Port = 5555;
 
+    public const int DiscoveryPort = 5556;
+
     public const int ChunkSize = 64 * 1024;
 
     public static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(60);
@@ -42,6 +44,8 @@ public sealed class Frame
     [JsonPropertyName("pin")] public string? Pin { get; set; }
 
     public static Frame Ping() => new() { Type = "ping" };
+
+    public static Frame Discover() => new() { Type = "discover" };
 
     public static Frame Pong(string name, string? displayName = null, bool @protected = false) =>
         new() { Type = "pong", Name = name, DisplayName = Blank(displayName), Protected = @protected ? true : null };

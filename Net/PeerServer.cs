@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using KRemote.Models;
+using KRemote.Platform;
 
 namespace KRemote.Net;
 
@@ -10,6 +11,8 @@ public sealed class PeerServer : IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Any, Protocol.Port);
     private readonly CancellationTokenSource _cts = new();
+    private readonly IDeviceIdentity _identity;
+    private readonly IStoragePaths _paths;
     private readonly Func<AppSettings> _settings;
     private readonly Func<string> _currentPin;
     private bool _started;
@@ -25,24 +28,16 @@ public sealed class PeerServer : IDisposable
 
     public event Action<string, long, long>? TransferProgress;
 
-    public PeerServer(Func<AppSettings>? settings = null, Func<string>? currentPin = null)
+    public PeerServer(
+        IDeviceIdentity identity,
+        IStoragePaths paths,
+        Func<AppSettings>? settings = null,
+        Func<string>? currentPin = null)
     {
+        _identity = identity;
+        _paths = paths;
         _settings = settings ?? (() => new AppSettings());
         _currentPin = currentPin ?? (() => _settings().Pin);
-    }
-
-    public static string DownloadDirectory
-    {
-        get
-        {
-            var downloads = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-
-            if (!Directory.Exists(downloads))
-                downloads = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-            return Path.Combine(downloads, "KRemote");
-        }
     }
 
     private string EffectiveDownloadDirectory
@@ -50,7 +45,9 @@ public sealed class PeerServer : IDisposable
         get
         {
             var configured = _settings().DownloadsFolder;
-            return string.IsNullOrWhiteSpace(configured) ? DownloadDirectory : configured;
+            return string.IsNullOrWhiteSpace(configured)
+                ? _paths.DefaultReceivedFilesDirectory
+                : configured;
         }
     }
 
@@ -97,7 +94,7 @@ public sealed class PeerServer : IDisposable
                 switch (frame.Type)
                 {
                     case "ping":
-                        var pong = Frame.Pong(Environment.MachineName, settings.DisplayName, settings.PinEnabled);
+                        var pong = Frame.Pong(_identity.MachineName, settings.DisplayName, settings.PinEnabled);
                         await LineIO.WriteLineAsync(stream, Protocol.Serialize(pong), timeout.Token);
                         break;
 
