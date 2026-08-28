@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Share" Height="640" Width="560" MinHeight="560" MinWidth="480"
         WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}"
-        FontFamily="Segoe UI" Foreground="{StaticResource Ink}">
+        FontFamily="Segoe UI" Foreground="{StaticResource Ink}"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -21,7 +22,6 @@
 
         <TextBlock Grid.Row="0" Text="Share" Style="{StaticResource Title}"/>
 
-        <!-- Device picker -->
         <Border Grid.Row="1" Background="{StaticResource Card}" CornerRadius="10" Margin="0,10,0,0"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12">
             <Grid>
@@ -38,8 +38,10 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" x:Name="TargetLabel" Style="{StaticResource Subtle}"
                                VerticalAlignment="Center" Text="No device selected."/>
-                    <Button Grid.Column="1" x:Name="ScanButton" Style="{StaticResource GhostButton}"
-                            Content="Scan network" Click="ScanButton_Click"/>
+                    <Button Grid.Column="1" x:Name="ScanButton" Style="{StaticResource IconButton}"
+                            Content="Scan network" Tag="&#xE72C;"
+                            ToolTip="Look for other PCs running KRemote on this network"
+                            Click="ScanButton_Click"/>
                 </Grid>
 
                 <StackPanel Grid.Row="1" Margin="0,8,0,0">
@@ -50,8 +52,9 @@
                                Text="No scan yet."/>
                 </StackPanel>
 
-                <ListBox x:Name="PeerList" Grid.Row="2" Style="{StaticResource FlatList}" Height="110"
-                         Margin="0,8,0,0" SelectionChanged="PeerList_SelectionChanged">
+                <Grid Grid.Row="2" Margin="0,8,0,0" Height="110">
+                <ListBox x:Name="PeerList" Style="{StaticResource FlatList}"
+                         SelectionChanged="PeerList_SelectionChanged">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Grid>
@@ -72,10 +75,15 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+                <StackPanel x:Name="PeerEmptyState" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <TextBlock Text="&#xE968;" Style="{StaticResource EmptyStateGlyph}" FontSize="24"/>
+                    <TextBlock Style="{StaticResource EmptyStateText}" Margin="0,6,0,0"
+                               Text="Press Scan network to find other PCs."/>
+                </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
-        <!-- PIN unlock row, shown only when the selected peer is protected and not yet unlocked -->
         <Border x:Name="PinUnlockRow" Grid.Row="2" Margin="0,10,0,0" CornerRadius="8"
                 Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
                 BorderThickness="1" Padding="10" Visibility="Collapsed">
@@ -93,13 +101,12 @@
                         <PasswordBox x:Name="PinEntryBox" BorderThickness="0" Background="Transparent"
                                      Padding="10,8" FontSize="15" FontFamily="Consolas" MaxLength="4"/>
                     </Border>
-                    <Button Grid.Column="2" Style="{StaticResource PrimaryButton}" Content="Unlock"
+                    <Button Grid.Column="2" Style="{StaticResource IconPrimaryButton}" Content="Unlock" Tag="&#xE785;"
                             Click="UnlockButton_Click"/>
                 </Grid>
             </StackPanel>
         </Border>
 
-        <!-- Title -->
         <Border x:Name="TitleRow" Grid.Row="3" Margin="0,10,0,0" CornerRadius="8"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
             <Grid>
@@ -113,7 +120,6 @@
             </Grid>
         </Border>
 
-        <!-- Text -->
         <Border x:Name="TextRow" Grid.Row="4" Margin="0,10,0,0" CornerRadius="8" Height="120"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
             <TextBox x:Name="Editor" BorderThickness="0" Background="Transparent"
@@ -122,9 +128,12 @@
                      VerticalScrollBarVisibility="Auto" SpellCheck.IsEnabled="False"/>
         </Border>
 
-        <!-- Attachments -->
         <Border x:Name="AttachmentsRow" Grid.Row="5" Margin="0,10,0,0" CornerRadius="8" MinHeight="60"
                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD" Padding="8">
+            <Grid>
+            <TextBlock x:Name="AttachmentsPlaceholder" Style="{StaticResource EmptyStateText}"
+                       VerticalAlignment="Center" IsHitTestVisible="False" Margin="0"
+                       Text="No files attached. Text alone is fine too."/>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="AttachmentList">
                     <ItemsControl.ItemsPanel>
@@ -151,32 +160,40 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
+            </Grid>
         </Border>
 
-        <!-- Inline error banner -->
         <Border x:Name="ErrorBanner" Grid.Row="6" Margin="0,10,0,0" CornerRadius="8"
                 Background="#FDECEA" BorderBrush="{StaticResource Danger}" BorderThickness="1"
                 Padding="10,8" Visibility="Collapsed">
             <TextBlock x:Name="ErrorBannerText" Foreground="{StaticResource Danger}" FontSize="12.5" TextWrapping="Wrap"/>
         </Border>
 
-        <!-- Transfer progress -->
         <StackPanel x:Name="TransferPanel" Grid.Row="7" Margin="0,10,0,0" Visibility="Collapsed">
-            <ProgressBar x:Name="TransferProgress" Height="4" Minimum="0" Maximum="100"
+            <ProgressBar x:Name="TransferProgress" Height="6" Minimum="0" Maximum="100"
                          Foreground="{StaticResource Accent}" Background="#EDEFF2" BorderThickness="0"/>
-            <TextBlock x:Name="TransferStatus" Style="{StaticResource Subtle}" Margin="0,6,0,0"/>
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="TransferStatus" Style="{StaticResource Subtle}"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1" x:Name="TransferSpeed" Style="{StaticResource Subtle}"
+                           Margin="12,0,0,0"/>
+            </Grid>
         </StackPanel>
 
-        <!-- Attach files -->
-        <Button Grid.Row="8" x:Name="AttachFilesButton" Style="{StaticResource GhostButton}"
-                Content="Attach files…" HorizontalAlignment="Left" Margin="0,10,0,0"
+        <Button Grid.Row="8" x:Name="AttachFilesButton" Style="{StaticResource IconButton}"
+                Content="Attach files…" Tag="&#xE723;" ToolTip="Pick one or more files to send with this message"
+                HorizontalAlignment="Left" Margin="0,10,0,0"
                 Click="AttachFilesButton_Click"/>
 
-        <!-- Send / Cancel -->
         <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button x:Name="CancelButton" Style="{StaticResource GhostButton}" Content="Cancel"
-                    Click="CancelButton_Click"/>
-            <Button x:Name="SendButton" Style="{StaticResource PrimaryButton}" Content="Send"
+            <Button x:Name="CancelButton" Style="{StaticResource IconButton}" Content="Cancel" Tag="&#xE711;"
+                    IsCancel="True" Click="CancelButton_Click"/>
+            <Button x:Name="SendButton" Style="{StaticResource IconPrimaryButton}" Content="Send" Tag="&#xE724;"
+                    ToolTip="Send to the selected device (Ctrl+Enter)"
                     Margin="8,0,0,0" MinWidth="110" Click="SendButton_Click"/>
         </StackPanel>
     </Grid>

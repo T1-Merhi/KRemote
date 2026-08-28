@@ -8,15 +8,10 @@ using KRemote.Net;
 
 namespace KRemote.Views;
 
-/// <summary>
-/// The compose flow, in its own popup: pick a device, write a title/text, attach
-/// files, and send. Attaching files stages them as removable chips rather than
-/// sending immediately; text alone still sends the moment Send is pressed.
-/// </summary>
 public partial class SharePopup : Window
 {
-    private const long MaxAttachmentsTotalBytes = 1L * 1024 * 1024 * 1024; // 1 GB
-    private const long MaxTextBytes = 1L * 1024 * 1024;                    // 1 MB
+    private const long MaxAttachmentsTotalBytes = 1L * 1024 * 1024 * 1024;
+    private const long MaxTextBytes = 1L * 1024 * 1024;
 
     private readonly ObservableCollection<Peer> _peers = [];
     private readonly ObservableCollection<StagedAttachment> _attachments = [];
@@ -26,8 +21,8 @@ public partial class SharePopup : Window
     private bool _scanning;
     private bool _sending;
     private bool _unlocking;
+    private string? _transferSummary;
 
-    /// <summary>Set when a send completes successfully, so the owner can show a toast.</summary>
     public string? SuccessMessage { get; private set; }
 
     public SharePopup(AppSettings settings, PinManager pinManager)
@@ -38,9 +33,28 @@ public partial class SharePopup : Window
         _pinManager = pinManager;
         PeerList.ItemsSource = _peers;
         AttachmentList.ItemsSource = _attachments;
+
+        _attachments.CollectionChanged += (_, _) => UpdateAttachmentsPlaceholder();
+        _peers.CollectionChanged += (_, _) => UpdatePeerPlaceholder();
+
+        Loaded += (_, _) => Editor.Focus();
     }
 
-    // ---------------------------------------------------------------- scanning
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter &&
+            (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            e.Handled = true;
+            if (SendButton.IsEnabled) SendButton_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void UpdateAttachmentsPlaceholder() =>
+        AttachmentsPlaceholder.Visibility = _attachments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void UpdatePeerPlaceholder() =>
+        PeerEmptyState.Visibility = _peers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
     {
@@ -99,7 +113,6 @@ public partial class SharePopup : Window
             : "No device selected.";
     }
 
-    /// <summary>Shows the inline PIN row and disables composing when the selected peer is protected and not yet unlocked.</summary>
     private void UpdatePinGate()
     {
         var needsUnlock = PeerList.SelectedItem is Peer { IsProtected: true } peer && !_pinManager.IsUnlocked(peer.Address);
@@ -146,8 +159,6 @@ public partial class SharePopup : Window
         }
     }
 
-    // ---------------------------------------------------------------- compose
-
     private void TitleBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         TitlePlaceholder.Visibility = string.IsNullOrEmpty(TitleBox.Text) ? Visibility.Visible : Visibility.Collapsed;
@@ -191,8 +202,6 @@ public partial class SharePopup : Window
         if (((FrameworkElement)sender).Tag is StagedAttachment attachment)
             _attachments.Remove(attachment);
     }
-
-    // ---------------------------------------------------------------- send
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)
     {
@@ -249,7 +258,10 @@ public partial class SharePopup : Window
             {
                 await SendAttachmentsAsync(peer, title, hasText ? text : null, pin);
             }
-            SuccessMessage = $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.";
+
+            SuccessMessage = _transferSummary is null
+                ? $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}."
+                : $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.\n{_transferSummary}";
 
             DialogResult = true;
             Close();
@@ -270,19 +282,64 @@ public partial class SharePopup : Window
     private async Task SendAttachmentsAsync(Peer peer, string? title, string? text, string? pin)
     {
         TransferPanel.Visibility = Visibility.Visible;
+        TransferSpeed.Text = "";
+
         var files = _attachments.Select(a => a.FilePath).ToList();
+        var sizes = _attachments.Select(a => a.Size).ToList();
+        var grandTotal = sizes.Sum();
+
+        var started = DateTime.UtcNow;
+        var lastRender = DateTime.MinValue;
+        var bytesOnWire = 0L;
 
         var progress = new Progress<(int fileIndex, int fileCount, long sent, long total)>(p =>
         {
-            TransferProgress.Maximum = Math.Max(1, p.total);
-            TransferProgress.Value = p.sent;
-            var percent = p.total > 0 ? p.sent * 100.0 / p.total : 100;
-            TransferStatus.Text = files.Count > 1
-                ? $"Sending file {p.fileIndex + 1} of {p.fileCount}  ·  {percent:0}%"
-                : $"{percent:0}%";
+            var completedBefore = _settings.MultiFileMode == MultiFileSendMode.Grouped && p.fileCount > 1
+                ? sizes.Take(Math.Min(p.fileIndex, sizes.Count)).Sum()
+                : 0;
+
+            var overallTotal = p.fileCount > 1 && _settings.MultiFileMode == MultiFileSendMode.Grouped
+                ? grandTotal
+                : p.total;
+
+            var overallSent = Math.Min(completedBefore + p.sent, overallTotal);
+            bytesOnWire = overallTotal;
+
+            TransferProgress.Maximum = Math.Max(1, overallTotal);
+            TransferProgress.Value = overallSent;
+
+            var now = DateTime.UtcNow;
+            var complete = overallSent >= overallTotal;
+            if (!complete && now - lastRender < TimeSpan.FromMilliseconds(100)) return;
+            lastRender = now;
+
+            var percent = overallTotal > 0 ? overallSent * 100.0 / overallTotal : 100;
+            var counts = $"{InboxMessage.FormatSize(overallSent)} of {InboxMessage.FormatSize(overallTotal)}";
+
+            TransferStatus.Text = p.fileCount > 1
+                ? $"File {p.fileIndex + 1} of {p.fileCount}  ·  {percent:0}%  ·  {counts}"
+                : $"{percent:0}%  ·  {counts}";
+
+            var seconds = (now - started).TotalSeconds;
+            if (seconds >= 0.25 && overallSent > 0)
+            {
+                var bytesPerSecond = (long)(overallSent / seconds);
+                TransferSpeed.Text = $"{InboxMessage.FormatSize(bytesPerSecond)}/s";
+            }
         });
 
         await PeerSender.SendFilesAsync(peer.Address, title, text, files, _settings.MultiFileMode, progress, CancellationToken.None, pin);
+
+        var elapsed = Math.Max(0.001, (DateTime.UtcNow - started).TotalSeconds);
+        var sentTotal = bytesOnWire > 0 ? bytesOnWire : grandTotal;
+        var rate = InboxMessage.FormatSize((long)(sentTotal / elapsed));
+
+        TransferProgress.Value = TransferProgress.Maximum;
+        TransferStatus.Text = $"Done  ·  {InboxMessage.FormatSize(sentTotal)} in {elapsed:0.0}s";
+        TransferSpeed.Text = $"{rate}/s";
+
+        var label = files.Count == 1 ? "1 file" : $"{files.Count} files";
+        _transferSummary = $"{label}  ·  {InboxMessage.FormatSize(sentTotal)} in {elapsed:0.0}s  ·  {rate}/s";
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -290,8 +347,6 @@ public partial class SharePopup : Window
         DialogResult = false;
         Close();
     }
-
-    // ---------------------------------------------------------------- error banner
 
     private void ShowError(string message)
     {

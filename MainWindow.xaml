@@ -3,15 +3,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="KRemote" Height="720" Width="1080" MinHeight="580" MinWidth="920"
         Background="{StaticResource Bg}"
-        FontFamily="Segoe UI" Foreground="{StaticResource Ink}">
+        FontFamily="Segoe UI" Foreground="{StaticResource Ink}"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-        <TabControl x:Name="RootTabs" Style="{StaticResource FlatTabControl}"
+        <TabControl x:Name="RootTabs" Grid.Row="0" Style="{StaticResource FlatTabControl}"
                     SelectionChanged="RootTabs_SelectionChanged">
 
-            <!-- ============ Inbox ============ -->
-            <TabItem>
+            <TabItem AutomationProperties.Name="Inbox">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Inbox" VerticalAlignment="Center"/>
@@ -42,36 +46,48 @@
                                        Text="Nothing received yet."/>
                         </StackPanel>
 
-                        <ListBox x:Name="InboxList" Grid.Row="1" Grid.Column="0" Style="{StaticResource FlatList}"
-                                 Margin="0,10,0,0" ItemTemplate="{StaticResource InboxRowTemplate}"
-                                 SelectionChanged="InboxList_SelectionChanged"/>
+                        <Grid Grid.Row="1" Grid.Column="0" Margin="0,10,0,0">
+                            <ListBox x:Name="InboxList" Style="{StaticResource FlatList}"
+                                     ItemTemplate="{StaticResource InboxRowTemplate}"
+                                     SelectionChanged="InboxList_SelectionChanged"/>
+                            <StackPanel x:Name="InboxEmptyState" VerticalAlignment="Center" IsHitTestVisible="False">
+                                <TextBlock Text="&#xE8BD;" Style="{StaticResource EmptyStateGlyph}"/>
+                                <TextBlock Style="{StaticResource EmptyStateText}"
+                                           Text="Nothing here yet. Anything another PC sends you lands in this list."/>
+                            </StackPanel>
+                        </Grid>
 
                         <WrapPanel Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Top">
-                            <Button x:Name="OpenButton" Style="{StaticResource GhostButton}" Content="Open"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="OpenButton_Click"/>
-                            <Button x:Name="ShowInFolderButton" Style="{StaticResource GhostButton}" Content="Show in folder"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="ShowInFolderButton_Click"/>
-                            <Button x:Name="CopyButton" Style="{StaticResource GhostButton}" Content="Copy"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="CopyButton_Click"/>
-                            <Button x:Name="SaveButton" Style="{StaticResource GhostButton}" Content="Save"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="SaveButton_Click"/>
-                            <Button x:Name="DeleteButton" Style="{StaticResource GhostButton}" Content="Delete"
+                            <Button x:Name="OpenButton" Style="{StaticResource IconButton}" Content="Open" Tag="&#xE8E5;"
+                                    ToolTip="Open the received file" Margin="0,0,8,6" IsEnabled="False" Click="OpenButton_Click"/>
+                            <Button x:Name="ShowInFolderButton" Style="{StaticResource IconButton}" Content="Show in folder" Tag="&#xED43;"
+                                    ToolTip="Reveal the file in File Explorer" Margin="0,0,8,6" IsEnabled="False" Click="ShowInFolderButton_Click"/>
+                            <Button x:Name="CopyButton" Style="{StaticResource IconButton}" Content="Copy" Tag="&#xE8C8;"
+                                    ToolTip="Copy the text, or a file's path" Margin="0,0,8,6" IsEnabled="False" Click="CopyButton_Click"/>
+                            <Button x:Name="SaveButton" Style="{StaticResource IconButton}" Content="Save" Tag="&#xE718;"
+                                    ToolTip="Keep this message after KRemote closes" Margin="0,0,8,6" IsEnabled="False" Click="SaveButton_Click"/>
+                            <Button x:Name="DeleteButton" Style="{StaticResource IconButton}" Content="Delete" Tag="&#xE74D;"
+                                    ToolTip="Remove this row. The downloaded file stays on disk."
                                     Margin="0,0,0,6" IsEnabled="False" Foreground="{StaticResource Danger}"
                                     Click="DeleteButton_Click"/>
                         </WrapPanel>
 
                         <Border Grid.Row="1" Grid.Column="2" Margin="0,10,0,0" CornerRadius="8"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
-                            <TextBox x:Name="MessageView" BorderThickness="0" Background="Transparent"
-                                     Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
-                                     IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-                                     VerticalScrollBarVisibility="Auto"/>
+                            <Grid>
+                                <TextBox x:Name="MessageView" BorderThickness="0" Background="Transparent"
+                                         Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
+                                         IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"/>
+                                <TextBlock x:Name="MessagePlaceholder" Style="{StaticResource EmptyStateText}"
+                                           VerticalAlignment="Center" IsHitTestVisible="False"
+                                           Text="Select a message to read it."/>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Border>
             </TabItem>
 
-            <!-- ============ Saved ============ -->
             <TabItem Header="Saved">
                 <Border Background="{StaticResource Card}" CornerRadius="10" Margin="0,12,0,0"
                         BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14">
@@ -92,41 +108,53 @@
                                        Text="Nothing saved yet."/>
                         </StackPanel>
 
-                        <ListBox x:Name="SavedList" Grid.Row="1" Grid.Column="0" Style="{StaticResource FlatList}"
-                                 Margin="0,10,0,0" ItemTemplate="{StaticResource InboxRowTemplate}"
-                                 SelectionChanged="SavedList_SelectionChanged"/>
+                        <Grid Grid.Row="1" Grid.Column="0" Margin="0,10,0,0">
+                            <ListBox x:Name="SavedList" Style="{StaticResource FlatList}"
+                                     ItemTemplate="{StaticResource InboxRowTemplate}"
+                                     SelectionChanged="SavedList_SelectionChanged"/>
+                            <StackPanel x:Name="SavedEmptyState" VerticalAlignment="Center" IsHitTestVisible="False">
+                                <TextBlock Text="&#xE718;" Style="{StaticResource EmptyStateGlyph}"/>
+                                <TextBlock Style="{StaticResource EmptyStateText}"
+                                           Text="Press Save on an inbox message to keep it here after KRemote closes."/>
+                            </StackPanel>
+                        </Grid>
 
                         <WrapPanel Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Top">
-                            <Button x:Name="SavedOpenButton" Style="{StaticResource GhostButton}" Content="Open"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="OpenButton_Click"/>
-                            <Button x:Name="SavedShowInFolderButton" Style="{StaticResource GhostButton}" Content="Show in folder"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="ShowInFolderButton_Click"/>
-                            <Button x:Name="SavedCopyButton" Style="{StaticResource GhostButton}" Content="Copy"
-                                    Margin="0,0,8,6" IsEnabled="False" Click="CopyButton_Click"/>
-                            <Button x:Name="UnsaveButton" Style="{StaticResource GhostButton}" Content="Unsave"
+                            <Button x:Name="SavedOpenButton" Style="{StaticResource IconButton}" Content="Open" Tag="&#xE8E5;"
+                                    ToolTip="Open the received file" Margin="0,0,8,6" IsEnabled="False" Click="OpenButton_Click"/>
+                            <Button x:Name="SavedShowInFolderButton" Style="{StaticResource IconButton}" Content="Show in folder" Tag="&#xED43;"
+                                    ToolTip="Reveal the file in File Explorer" Margin="0,0,8,6" IsEnabled="False" Click="ShowInFolderButton_Click"/>
+                            <Button x:Name="SavedCopyButton" Style="{StaticResource IconButton}" Content="Copy" Tag="&#xE8C8;"
+                                    ToolTip="Copy the text, or a file's path" Margin="0,0,8,6" IsEnabled="False" Click="CopyButton_Click"/>
+                            <Button x:Name="UnsaveButton" Style="{StaticResource IconButton}" Content="Unsave" Tag="&#xE77A;"
+                                    ToolTip="Stop keeping this message after KRemote closes"
                                     Margin="0,0,8,6" IsEnabled="False" Click="UnsaveButton_Click"/>
-                            <Button x:Name="SavedDeleteButton" Style="{StaticResource GhostButton}" Content="Delete"
+                            <Button x:Name="SavedDeleteButton" Style="{StaticResource IconButton}" Content="Delete" Tag="&#xE74D;"
+                                    ToolTip="Remove this row. The downloaded file stays on disk."
                                     Margin="0,0,0,6" IsEnabled="False" Foreground="{StaticResource Danger}"
                                     Click="DeleteButton_Click"/>
                         </WrapPanel>
 
                         <Border Grid.Row="1" Grid.Column="2" Margin="0,10,0,0" CornerRadius="8"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Background="#FCFCFD">
-                            <TextBox x:Name="SavedMessageView" BorderThickness="0" Background="Transparent"
-                                     Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
-                                     IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-                                     VerticalScrollBarVisibility="Auto"/>
+                            <Grid>
+                                <TextBox x:Name="SavedMessageView" BorderThickness="0" Background="Transparent"
+                                         Padding="10" FontSize="13.5" FontFamily="Consolas, Segoe UI"
+                                         IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"/>
+                                <TextBlock x:Name="SavedMessagePlaceholder" Style="{StaticResource EmptyStateText}"
+                                           VerticalAlignment="Center" IsHitTestVisible="False"
+                                           Text="Select a message to read it."/>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Border>
             </TabItem>
 
-            <!-- ============ Settings ============ -->
             <TabItem Header="Settings">
                 <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="620" HorizontalAlignment="Left">
 
-                        <!-- General -->
                         <Border Background="{StaticResource Card}" CornerRadius="10"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
                             <StackPanel>
@@ -153,16 +181,15 @@
                                         <TextBox x:Name="DownloadsFolderBox" BorderThickness="0" Background="Transparent"
                                                  Padding="10,8" FontSize="13" IsReadOnly="True"/>
                                     </Border>
-                                    <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="Browse…"
+                                    <Button Grid.Column="2" Style="{StaticResource IconButton}" Content="Browse…" Tag="&#xE838;"
                                             Click="BrowseDownloadsFolderButton_Click"/>
                                 </Grid>
-                                <Button Style="{StaticResource GhostButton}" Content="Reset to default"
+                                <Button Style="{StaticResource IconButton}" Content="Reset to default" Tag="&#xE7A7;"
                                         HorizontalAlignment="Left" Margin="0,8,0,0"
                                         Click="ResetDownloadsFolderButton_Click"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Sending -->
                         <Border Background="{StaticResource Card}" CornerRadius="10"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
                             <StackPanel>
@@ -181,12 +208,11 @@
                                              Padding="10,8" FontSize="13" MaxLength="4"
                                              TextChanged="GroupTimeoutBox_TextChanged"/>
                                 </Border>
-                                <TextBlock Style="{StaticResource Subtle}" Margin="0,4,0,0"
+                                <TextBlock x:Name="GroupTimeoutHint" Style="{StaticResource Subtle}" Margin="0,4,0,0"
                                            Text="If a grouped send is interrupted, whatever files did arrive are shown after this many seconds of silence."/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Notifications -->
                         <Border Background="{StaticResource Card}" CornerRadius="10"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
                             <StackPanel>
@@ -202,7 +228,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Security -->
                         <Border Background="{StaticResource Card}" CornerRadius="10"
                                 BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,0,14">
                             <StackPanel>
@@ -229,8 +254,9 @@
                                                      Padding="10,8" FontSize="15" FontFamily="Consolas" MaxLength="4"
                                                      TextChanged="PinBox_TextChanged"/>
                                         </Border>
-                                        <Button Grid.Column="2" x:Name="CopyPinButton" Style="{StaticResource GhostButton}"
-                                                Content="Copy" Click="CopyPinButton_Click"/>
+                                        <Button Grid.Column="2" x:Name="CopyPinButton" Style="{StaticResource IconButton}"
+                                                Content="Copy" Tag="&#xE8C8;" ToolTip="Copy this PIN to share it with a sender"
+                                                Click="CopyPinButton_Click"/>
                                     </Grid>
                                 </StackPanel>
                             </StackPanel>
@@ -242,10 +268,11 @@
 
         </TabControl>
 
-        <!-- Floating action button: opens the Share popup. Hidden on the Settings tab. -->
-        <Button x:Name="ShareButton" Style="{StaticResource PrimaryButton}" Content="Share"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                MinWidth="120" Padding="20,12" Margin="0,0,4,4"
+        <Button x:Name="ShareButton" Grid.Row="1" Style="{StaticResource IconPrimaryButton}"
+                Content="Share" Tag="&#xE72D;"
+                ToolTip="Send text or files to another PC (Ctrl+N)"
+                HorizontalAlignment="Right" MinWidth="130" Padding="20,11"
+                Margin="0,12,0,0"
                 Click="ShareButton_Click"/>
 
     </Grid>

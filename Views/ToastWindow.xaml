@@ -1,0 +1,37 @@
+<Window x:Class="KRemote.Views.ToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KRemote" SizeToContent="Height" Width="420"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" FontFamily="Segoe UI">
+
+    <Border Background="{StaticResource Card}" CornerRadius="12"
+            BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="28,26">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="26" ShadowDepth="5"/>
+        </Border.Effect>
+
+        <StackPanel>
+            <Border x:Name="IconCircle" Width="56" Height="56" CornerRadius="28"
+                    HorizontalAlignment="Center" Background="#E7F7EE">
+                <TextBlock x:Name="IconGlyph" Text="&#xE73E;"
+                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                           FontSize="26" Foreground="#1A8245"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <TextBlock x:Name="HeadlineText" Text="Sent" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource Ink}" HorizontalAlignment="Center"
+                       Margin="0,16,0,0"/>
+
+            <TextBlock x:Name="DetailText" FontSize="13" Foreground="{StaticResource Muted}"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Margin="0,8,0,0"/>
+
+            <Button x:Name="CloseButton" Style="{StaticResource PrimaryButton}" Content="OK"
+                    MinWidth="120" HorizontalAlignment="Center" Margin="0,22,0,0"
+                    IsDefault="True" IsCancel="True" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Border>
+</Window>

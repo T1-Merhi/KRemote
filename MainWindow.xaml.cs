@@ -14,12 +14,6 @@ using KRemote.Storage;
 
 namespace KRemote;
 
-/// <summary>
-/// Every instance is both ends of the link: it listens for text and files from
-/// other PCs and can send either to one of them. The window itself is now just
-/// three tabs (Inbox, Saved, Settings) plus a floating Share button that opens
-/// the compose flow in its own popup.
-/// </summary>
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<InboxMessage> _inbox = [];
@@ -42,10 +36,12 @@ public partial class MainWindow : Window
 
         if (!_settings.FirstRunPromptShown)
         {
-            var prompt = new Views.FirstRunPinPrompt { Owner = this };
-            prompt.ShowDialog();
-            prompt.Apply(_settings);
-            _settingsStore.Save(_settings);
+            var prompt = new Views.FirstRunPinPrompt();
+            if (prompt.ShowDialog() == true)
+            {
+                prompt.Apply(_settings);
+                _settingsStore.Save(_settings);
+            }
         }
 
         _pinManager = new PinManager(_settings);
@@ -57,9 +53,6 @@ public partial class MainWindow : Window
         _savedView.Filter += (_, e) => e.Accepted = e.Item is InboxMessage { IsSaved: true };
         SavedList.ItemsSource = _savedView.View;
 
-        // Saved messages are the only ones that survive a restart; they come
-        // back newest first, the same order live arrivals are inserted in.
-        // They are history, not new arrivals, so they start out already read.
         foreach (var message in _store.Load().OrderByDescending(m => m.ReceivedAt))
         {
             message.IsUnread = false;
@@ -72,10 +65,9 @@ public partial class MainWindow : Window
         UpdateSavedStatus();
         UpdateMessageButtons();
         UpdateUnreadBadge();
+        UpdateEmptyStates();
         StartServer();
     }
-
-    // ---------------------------------------------------------------- receiving
 
     private void StartServer()
     {
@@ -89,30 +81,24 @@ public partial class MainWindow : Window
         }
         catch (SocketException)
         {
-            // Almost always a second copy of KRemote on this machine. Sending
-            // still works, so keep running instead of failing to start.
         }
     }
 
     private void OnMessageReceived(InboxMessage message)
     {
-        // Raised on a socket thread; the inbox is a UI-bound collection.
-        // The in-app UI itself never steals focus or pops up -- Settings'
-        // notification toggles are what a user opts into for an external nudge.
         Dispatcher.Invoke(() =>
         {
             _inbox.Insert(0, message);
             UpdateInboxStatus();
             UpdateSavedStatus();
             UpdateUnreadBadge();
+            UpdateEmptyStates();
             _notifications.NotifyMessageReceived(message);
         });
     }
 
     private void OnTransferProgress(string fileName, long received, long total)
     {
-        // An incoming file is the one case where the inbox is worth narrating,
-        // since a large transfer would otherwise look like nothing happening.
         Dispatcher.BeginInvoke(() =>
         {
             if (received >= total)
@@ -127,80 +113,50 @@ public partial class MainWindow : Window
         });
     }
 
-    // ---------------------------------------------------------------- tabs
-
     private void RootTabs_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (e.Source != RootTabs) return;
         ShareButton.Visibility = RootTabs.SelectedIndex == 2 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    // ---------------------------------------------------------------- share popup
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.N &&
+            (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            e.Handled = true;
+            if (ShareButton.Visibility == Visibility.Visible) ShareButton_Click(this, new RoutedEventArgs());
+            return;
+        }
+
+        if (e.Key == System.Windows.Input.Key.Delete &&
+            (InboxList.IsKeyboardFocusWithin || SavedList.IsKeyboardFocusWithin) &&
+            ActiveList.SelectedItem is InboxMessage)
+        {
+            e.Handled = true;
+            DeleteButton_Click(this, new RoutedEventArgs());
+        }
+    }
 
     private void ShareButton_Click(object sender, RoutedEventArgs e)
     {
         var popup = new Views.SharePopup(_settings, _pinManager) { Owner = this };
         if (popup.ShowDialog() == true && popup.SuccessMessage is not null)
-            ShowToast(popup.SuccessMessage);
+            ShowToast(popup.SuccessMessage, success: true);
     }
 
-    /// <summary>Shows a small self-dismissing confirmation, e.g. after a successful send.</summary>
-    public void ShowToast(string message)
+    public void ShowToast(string message, bool success)
     {
-        var toast = new Border
-        {
-            Background = (Brush)FindResource("Card"),
-            BorderBrush = (Brush)FindResource("Line"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14, 10, 14, 10),
-            Child = new System.Windows.Controls.TextBlock
-            {
-                Text = message,
-                FontSize = 12.5,
-                Foreground = (Brush)FindResource("Ink"),
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 320
-            }
-        };
-
-        var host = new Window
-        {
-            Content = toast,
-            WindowStyle = WindowStyle.None,
-            AllowsTransparency = true,
-            Background = null,
-            ShowInTaskbar = false,
-            ResizeMode = ResizeMode.NoResize,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            Owner = this,
-            Topmost = true
-        };
-
-        host.Loaded += (_, _) =>
-        {
-            host.Left = Left + Width - host.ActualWidth - 24;
-            host.Top = Top + Height - host.ActualHeight - 24;
-        };
-
-        host.Show();
-
-        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            host.Close();
-        };
-        timer.Start();
+        var dialog = new Views.ToastWindow(message, success) { Owner = this };
+        dialog.ShowDialog();
     }
-
-    // ---------------------------------------------------------------- inbox / saved
 
     private void InboxList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         MessageView.Text = InboxList.SelectedItem is InboxMessage message ? Describe(message) : "";
         MarkRead(InboxList.SelectedItem as InboxMessage);
         UpdateMessageButtons();
+        UpdateEmptyStates();
     }
 
     private void SavedList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -208,6 +164,16 @@ public partial class MainWindow : Window
         SavedMessageView.Text = SavedList.SelectedItem is InboxMessage message ? Describe(message) : "";
         MarkRead(SavedList.SelectedItem as InboxMessage);
         UpdateMessageButtons();
+        UpdateEmptyStates();
+    }
+
+    private void UpdateEmptyStates()
+    {
+        InboxEmptyState.Visibility = _inbox.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SavedEmptyState.Visibility = _inbox.Any(m => m.IsSaved) ? Visibility.Collapsed : Visibility.Visible;
+
+        MessagePlaceholder.Visibility = InboxList.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
+        SavedMessagePlaceholder.Visibility = SavedList.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void MarkRead(InboxMessage? message)
@@ -224,7 +190,6 @@ public partial class MainWindow : Window
         UnreadBadgeText.Text = count > 99 ? "99+" : count.ToString();
     }
 
-    /// <summary>Whichever list belongs to the currently selected tab.</summary>
     private System.Windows.Controls.ListBox ActiveList => RootTabs.SelectedIndex == 1 ? SavedList : InboxList;
 
     private static string Describe(InboxMessage message)
@@ -271,7 +236,6 @@ public partial class MainWindow : Window
 
         try
         {
-            // ShellExecute so the file opens in whatever it is associated with.
             Process.Start(new ProcessStartInfo(message.FilePath) { UseShellExecute = true });
         }
         catch (Exception ex)
@@ -310,7 +274,6 @@ public partial class MainWindow : Window
 
         try
         {
-            // For a file the useful thing to copy is where it landed.
             Clipboard.SetText(message.IsFile ? message.FilePath : message.Text);
             SetStatus(message.IsFile ? "File path copied to clipboard." : "Copied to clipboard.");
         }
@@ -332,6 +295,7 @@ public partial class MainWindow : Window
             UpdateSavedStatus();
         }
         UpdateMessageButtons();
+        UpdateEmptyStates();
     }
 
     private void UnsaveButton_Click(object sender, RoutedEventArgs e)
@@ -346,6 +310,7 @@ public partial class MainWindow : Window
             UpdateSavedStatus();
         }
         UpdateMessageButtons();
+        UpdateEmptyStates();
     }
 
     private void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -362,18 +327,13 @@ public partial class MainWindow : Window
         {
             UpdateInboxStatus();
             UpdateSavedStatus();
-            // Removing the row must not look like it deleted the download.
             if (wasFile) SetStatus("Removed from the inbox. The file itself is still on disk.");
         }
 
         UpdateMessageButtons();
+        UpdateEmptyStates();
     }
 
-    /// <summary>
-    /// Rewrites the saved set to disk. Returns false when the write failed, in
-    /// which case the reason is already on screen and the caller should not
-    /// overwrite it with a routine status line.
-    /// </summary>
     private bool PersistSaved()
     {
         try
@@ -438,8 +398,6 @@ public partial class MainWindow : Window
         SavedStatus.Text = saved == 0 ? "Nothing saved yet." : $"{saved} saved message{(saved == 1 ? "" : "s")}.";
     }
 
-    // ---------------------------------------------------------------- settings
-
     private void LoadSettingsIntoUi()
     {
         _loadingSettings = true;
@@ -467,7 +425,6 @@ public partial class MainWindow : Window
         _loadingSettings = false;
     }
 
-    /// <summary>In random mode the PIN box shows this run's generated code, read-only; in permanent mode it's editable.</summary>
     private void UpdatePinBoxForMode()
     {
         var isRandom = PinRandomRadio.IsChecked == true;
@@ -519,8 +476,14 @@ public partial class MainWindow : Window
 
     private void GroupTimeoutBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (int.TryParse(GroupTimeoutBox.Text, out var seconds) && seconds > 0)
-            _settings.GroupTimeoutSeconds = seconds;
+        if (_loadingSettings) return;
+
+        var valid = int.TryParse(GroupTimeoutBox.Text, out var seconds) && seconds > 0;
+        GroupTimeoutHint.Foreground = (Brush)FindResource(valid ? "Muted" : "Danger");
+
+        if (!valid) return;
+
+        _settings.GroupTimeoutSeconds = seconds;
         SaveSettings();
     }
 

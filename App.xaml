@@ -28,7 +28,6 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
 
-        <!-- Filled accent button, used for the two primary actions. -->
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Background" Value="{StaticResource Accent}"/>
@@ -56,7 +55,6 @@
             </Setter>
         </Style>
 
-        <!-- Outlined button for the secondary per-message actions. -->
         <Style x:Key="GhostButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Ink}"/>
             <Setter Property="Background" Value="{StaticResource Card}"/>
@@ -85,7 +83,52 @@
             </Setter>
         </Style>
 
-        <!-- Shared list styling: flat rows, soft selected state, no focus dotting. -->
+        <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                            <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="IconPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="EmptyStateGlyph" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="30"/>
+            <Setter Property="Foreground" Value="#C9CED6"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="EmptyStateText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+
         <Style x:Key="FlatList" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -119,8 +162,6 @@
             </Setter>
         </Style>
 
-        <!-- Shared row look for the Inbox and Saved lists: bold header line,
-             muted meta line, and a small bookmark glyph when the row is saved. -->
         <DataTemplate x:Key="InboxRowTemplate">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -140,30 +181,32 @@
             </Grid>
         </DataTemplate>
 
-        <!-- Flat, underlined tab strip instead of WPF's default boxed tabs. -->
         <Style x:Key="FlatTabItem" TargetType="TabItem">
-            <Setter Property="Padding" Value="4,8"/>
-            <Setter Property="Margin" Value="0,0,20,0"/>
             <Setter Property="FontSize" Value="13.5"/>
             <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="2"/>
-                            </Grid.RowDefinitions>
+                        <StackPanel Margin="0,0,22,0">
                             <ContentPresenter x:Name="Header" ContentSource="Header"
-                                              Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center"/>
-                            <Border x:Name="Underline" Grid.Row="1" Background="Transparent" Height="2"/>
-                        </Grid>
+                                              Margin="2,0,2,7"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextBlock.FontSize="{TemplateBinding FontSize}"
+                                              TextBlock.FontWeight="{TemplateBinding FontWeight}"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}"/>
+                            <Border x:Name="Underline" Background="Transparent" Height="2" CornerRadius="1"/>
+                        </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Underline" Property="Background" Value="{StaticResource Accent}"/>
                                 <Setter Property="Foreground" Value="{StaticResource Ink}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -177,7 +220,6 @@
             <Setter Property="ItemContainerStyle" Value="{StaticResource FlatTabItem}"/>
         </Style>
 
-        <!-- Small round badge with a count, used for the Inbox tab's unread indicator. -->
         <Style x:Key="CountBadge" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Danger}"/>
             <Setter Property="CornerRadius" Value="8"/>
