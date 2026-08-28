@@ -4,7 +4,6 @@ using System.Windows.Interop;
 
 namespace KRemote.Notifications;
 
-/// <summary>Flashes a window's taskbar icon via the native FlashWindowEx API.</summary>
 internal static class TaskbarFlash
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -23,7 +22,6 @@ internal static class TaskbarFlash
     private const uint FLASHW_TRAY = 0x00000002;
     private const uint FLASHW_TIMERNOFG = 0x0000000C;
 
-    /// <summary>Flashes the taskbar icon until the window regains focus.</summary>
     public static void Flash(Window window)
     {
         if (window.IsActive) return;

@@ -5,12 +5,6 @@ using KRemote.Models;
 
 namespace KRemote.Notifications;
 
-/// <summary>
-/// Fires the three "external" arrival signals -- toast, sound, taskbar flash --
-/// each gated by its own Settings toggle. The fourth signal (the unread badge)
-/// is pure in-app UI state tracked by MainWindow itself, since it isn't
-/// something to show outside the app.
-/// </summary>
 public sealed class NotificationService
 {
     private readonly Func<AppSettings> _settings;
@@ -42,8 +36,6 @@ public sealed class NotificationService
         }
         catch
         {
-            // Unpackaged toast delivery can fail to register on some Windows
-            // builds; a missed notification is not worth crashing over.
         }
     }
 }

@@ -4,12 +4,6 @@ using KRemote.Models;
 
 namespace KRemote.Net;
 
-/// <summary>
-/// The sending half: opens a connection to one chosen peer, hands over a text
-/// message or a file, and waits for the acknowledgement. Any failure is thrown
-/// so the UI can say the delivery did not happen rather than silently
-/// pretending it did.
-/// </summary>
 public static class PeerSender
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
@@ -28,11 +22,6 @@ public static class PeerSender
         await ExpectAsync(stream, "ok", timeout);
     }
 
-    /// <summary>
-    /// Streams one file to a peer, reporting bytes sent as it goes. The file is
-    /// read and written in <see cref="Protocol.ChunkSize"/> pieces, so its size
-    /// is bounded by the disk rather than by memory.
-    /// </summary>
     public static Task SendFileAsync(
         string address, string? title, string filePath, IProgress<long>? progress, CancellationToken ct, string? pin = null) =>
         SendFileAsync(address, title, null, filePath, progress, ct, null, null, null, pin);
@@ -57,7 +46,6 @@ public static class PeerSender
         var header = Frame.FileHeader(Environment.MachineName, title, fileName, size, text, groupId, groupCount, groupIndex, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(header), timeout.Token);
 
-        // The receiver vets the name and the folder before any bytes move.
         await ExpectAsync(stream, "ready", timeout);
 
         var buffer = new byte[Protocol.ChunkSize];
@@ -81,12 +69,6 @@ public static class PeerSender
         await ExpectAsync(stream, "ok", timeout);
     }
 
-    /// <summary>
-    /// Sends one or more files as a single logical message. A single file is
-    /// sent exactly as <see cref="SendFileAsync(string,string?,string,IProgress{long}?,CancellationToken)"/>
-    /// already does. Several files go out either zipped into one archive or as
-    /// a grouped sequence of individually saved files, per <paramref name="mode"/>.
-    /// </summary>
     public static async Task SendFilesAsync(
         string address, string? title, string? text, IReadOnlyList<string> filePaths, MultiFileSendMode mode,
         IProgress<(int fileIndex, int fileCount, long sent, long total)>? progress, CancellationToken ct, string? pin = null)
@@ -114,7 +96,6 @@ public static class PeerSender
             return;
         }
 
-        // Grouped mode: one connection per file, tagged with a shared group id.
         var groupId = Guid.NewGuid().ToString("N");
         for (var i = 0; i < filePaths.Count; i++)
         {
@@ -128,11 +109,6 @@ public static class PeerSender
         }
     }
 
-    /// <summary>
-    /// Cheap early check of a PIN against a peer, without sending anything to
-    /// the inbox. Purely a UX nicety: the real enforcement is the receiver's
-    /// unconditional check when a text/file frame actually arrives.
-    /// </summary>
     public static async Task VerifyPinAsync(string address, string pin, CancellationToken ct)
     {
         using var client = await ConnectAsync(address, ct);
@@ -162,11 +138,6 @@ public static class PeerSender
         }
     }
 
-    /// <summary>
-    /// Reads one reply and insists it is the expected verb. A "refused" frame
-    /// carries the receiver's reason, which is far more useful to show than a
-    /// generic failure.
-    /// </summary>
     private static async Task ExpectAsync(NetworkStream stream, string type, CancellationTokenSource timeout)
     {
         timeout.CancelAfter(Protocol.StallTimeout);

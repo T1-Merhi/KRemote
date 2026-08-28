@@ -4,11 +4,6 @@ using KRemote.Models;
 
 namespace KRemote.Storage;
 
-/// <summary>
-/// The on-disk half of <see cref="AppSettings"/>. Mirrors <see cref="MessageStore"/>'s
-/// shape: the whole settings object is rewritten on every save, since this is a
-/// handful of preferences, not a database.
-/// </summary>
 public sealed class SettingsStore
 {
     private static readonly string Directory_ = Path.Combine(

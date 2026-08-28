@@ -9,16 +9,6 @@ public enum MessageKind
     File
 }
 
-/// <summary>
-/// One item in the inbox: either a block of text or a file that has been
-/// written to disk.
-///
-/// The inbox lives in memory only. A message survives a restart only if the
-/// user presses Save, which writes it to the on-disk store and flips
-/// <see cref="IsSaved"/>. For a file, saving persists the row -- the bytes are
-/// already on disk in the downloads folder either way, and deleting the row
-/// never deletes the file.
-/// </summary>
 public sealed class InboxMessage : INotifyPropertyChanged
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -26,27 +16,19 @@ public sealed class InboxMessage : INotifyPropertyChanged
     public string FromAddress { get; set; } = "";
     public DateTime ReceivedAt { get; set; } = DateTime.Now;
 
-    /// <summary>Optional label the sender typed. Empty when they did not.</summary>
     public string Title { get; set; } = "";
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public MessageKind Kind { get; set; } = MessageKind.Text;
 
-    /// <summary>Body of a text message. Empty for a file.</summary>
     public string Text { get; set; } = "";
 
-    /// <summary>Name the file was saved under, which may differ from the sender's if it collided.</summary>
     public string FileName { get; set; } = "";
 
-    /// <summary>Where the received file landed on this PC.</summary>
     public string FilePath { get; set; } = "";
 
     public long FileSize { get; set; }
 
-    /// <summary>
-    /// Populated for a grouped multi-file send. The single-file fields above
-    /// still mirror the first attachment for backward-compatible display.
-    /// </summary>
     public List<InboxAttachment> Attachments { get; set; } = [];
 
     [JsonIgnore]
@@ -65,17 +47,12 @@ public sealed class InboxMessage : INotifyPropertyChanged
         }
     }
 
-    /// <summary>True until this row is selected/clicked in the inbox. Session-only, never persisted.</summary>
     [JsonIgnore]
     public bool IsUnread { get; set; } = true;
 
     [JsonIgnore]
     public bool IsFile => Kind == MessageKind.File;
 
-    /// <summary>
-    /// Bold first line of the inbox row: the sender's title when they gave one,
-    /// otherwise whatever best identifies the message on its own.
-    /// </summary>
     [JsonIgnore]
     public string Header
     {
@@ -91,7 +68,6 @@ public sealed class InboxMessage : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Muted second line: who sent it, when, and how big.</summary>
     [JsonIgnore]
     public string Meta
     {

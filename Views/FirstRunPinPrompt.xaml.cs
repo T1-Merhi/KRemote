@@ -3,10 +3,6 @@ using KRemote.Models;
 
 namespace KRemote.Views;
 
-/// <summary>
-/// Shown exactly once, the first time KRemote ever launches, asking whether to
-/// require a PIN before anyone can send this PC anything.
-/// </summary>
 public partial class FirstRunPinPrompt : Window
 {
     public FirstRunPinPrompt()
@@ -19,7 +15,6 @@ public partial class FirstRunPinPrompt : Window
         OptionsPanel.Visibility = EnableCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Applies the chosen option to <paramref name="settings"/> and marks the prompt as shown.</summary>
     public void Apply(AppSettings settings)
     {
         settings.PinEnabled = EnableCheck.IsChecked == true;

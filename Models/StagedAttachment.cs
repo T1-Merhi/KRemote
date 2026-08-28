@@ -1,10 +1,5 @@
 namespace KRemote.Models;
 
-/// <summary>
-/// One file the user has attached in the Share popup but not yet sent. UI-only
-/// and never serialized -- chips are added and removed from an
-/// ObservableCollection, never mutated in place.
-/// </summary>
 public sealed class StagedAttachment
 {
     public required string FilePath { get; init; }

@@ -4,12 +4,6 @@ using KRemote.Models;
 
 namespace KRemote.Storage;
 
-/// <summary>
-/// The on-disk half of the inbox. The inbox itself is in memory; only the
-/// messages the user explicitly saved are written here, and only those come
-/// back on the next launch. The whole set is rewritten on every change --
-/// these files hold a handful of notes, not a database.
-/// </summary>
 public sealed class MessageStore
 {
     private static readonly string Directory_ = Path.Combine(

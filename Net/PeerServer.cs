@@ -6,14 +6,6 @@ using KRemote.Models;
 
 namespace KRemote.Net;
 
-/// <summary>
-/// The receiving half of the app. Listens on <see cref="Protocol.Port"/>,
-/// answers scan probes with this machine's name, and raises
-/// <see cref="MessageReceived"/> for every text or file that arrives.
-///
-/// Events fire on thread-pool threads; the UI marshals them onto the
-/// dispatcher.
-/// </summary>
 public sealed class PeerServer : IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Any, Protocol.Port);
@@ -31,7 +23,6 @@ public sealed class PeerServer : IDisposable
 
     public event Action<InboxMessage>? MessageReceived;
 
-    /// <summary>Fires repeatedly while a file is arriving: name, bytes so far, total.</summary>
     public event Action<string, long, long>? TransferProgress;
 
     public PeerServer(Func<AppSettings>? settings = null, Func<string>? currentPin = null)
@@ -40,7 +31,6 @@ public sealed class PeerServer : IDisposable
         _currentPin = currentPin ?? (() => _settings().Pin);
     }
 
-    /// <summary>Where received files are written when no Settings override is set.</summary>
     public static string DownloadDirectory
     {
         get
@@ -48,8 +38,6 @@ public sealed class PeerServer : IDisposable
             var downloads = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
 
-            // A profile without a Downloads folder is unusual but not impossible;
-            // Documents always exists.
             if (!Directory.Exists(downloads))
                 downloads = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
@@ -66,12 +54,6 @@ public sealed class PeerServer : IDisposable
         }
     }
 
-    /// <summary>
-    /// Binds the port and starts accepting. Throws <see cref="SocketException"/>
-    /// when the port is already taken -- typically a second KRemote instance on
-    /// the same PC -- which the caller surfaces instead of crashing, because
-    /// sending still works without a listener.
-    /// </summary>
     public void Start()
     {
         _listener.Start();
@@ -162,11 +144,6 @@ public sealed class PeerServer : IDisposable
         }
     }
 
-    /// <summary>
-    /// True when this PC does not require a PIN, or the frame carries the
-    /// correct one. A missing or blank PIN is never treated as "protection
-    /// disabled" -- protection state lives only on the receiver.
-    /// </summary>
     private bool IsPinCorrect(Frame frame, AppSettings settings)
     {
         if (!settings.PinEnabled) return true;
@@ -230,7 +207,6 @@ public sealed class PeerServer : IDisposable
         MessageReceived?.Invoke(pending.Message);
     }
 
-    /// <summary>Evicts groups that stopped receiving files, surfacing whatever attachments did arrive.</summary>
     private void SweepStaleGroups()
     {
         var timeout = TimeSpan.FromSeconds(Math.Max(1, _settings().GroupTimeoutSeconds));
@@ -241,8 +217,6 @@ public sealed class PeerServer : IDisposable
             if (pending.LastActivity > cutoff) continue;
             if (!_pendingGroups.TryRemove(key, out _)) continue;
 
-            // Already-downloaded files are never discarded, even if the group
-            // never completed -- only the single-row grouping is lost.
             MessageReceived?.Invoke(pending.Message);
         }
     }
@@ -272,7 +246,6 @@ public sealed class PeerServer : IDisposable
             return null;
         }
 
-        // Only now does the sender start pushing bytes.
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ready()), timeout.Token);
 
         var fileName = Path.GetFileName(finalPath);
@@ -289,8 +262,6 @@ public sealed class PeerServer : IDisposable
 
                 while (received < size)
                 {
-                    // Refresh the stall deadline per chunk: the limit is on
-                    // silence, not on how long a large transfer may take.
                     timeout.CancelAfter(Protocol.StallTimeout);
 
                     var want = (int)Math.Min(buffer.Length, size - received);
@@ -308,8 +279,6 @@ public sealed class PeerServer : IDisposable
         }
         catch
         {
-            // A half-written .part file is worse than nothing: it looks like a
-            // real download until you open it.
             TryDelete(partPath);
             throw;
         }

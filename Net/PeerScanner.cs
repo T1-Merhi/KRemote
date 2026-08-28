@@ -7,25 +7,12 @@ using KRemote.Models;
 
 namespace KRemote.Net;
 
-/// <summary>
-/// Finds the other open KRemote apps by probing the local subnet directly --
-/// no broadcast, no announcements. Every candidate address gets a short TCP
-/// connect on <see cref="Protocol.Port"/>; whoever completes the ping/pong
-/// handshake is a running instance.
-///
-/// Only the /24 around each local IPv4 address is swept. A wider mask (a /16,
-/// say) would mean 65k probes, which is not something a user should wait for.
-/// </summary>
 public static class PeerScanner
 {
     private const int ConnectTimeoutMs = 500;
     private const int HandshakeTimeoutMs = 800;
     private const int MaxConcurrentProbes = 128;
 
-    /// <summary>
-    /// Sweeps the subnet and returns the instances that answered, sorted by
-    /// machine name. <paramref name="progress"/> reports completed probes.
-    /// </summary>
     public static async Task<List<Peer>> ScanAsync(
         IProgress<(int done, int total)>? progress,
         CancellationToken ct)
@@ -58,17 +45,12 @@ public static class PeerScanner
 
         await Task.WhenAll(probes);
 
-        // Our own listener answers its probe like any other; drop it so the
-        // list only offers PCs you can actually send to.
         return found
             .Where(p => !ownAddresses.Contains(p.Address))
             .OrderBy(p => p.MachineName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    /// <summary>
-    /// Every host address in the /24 of each up, non-loopback IPv4 interface.
-    /// </summary>
     private static (List<IPAddress> candidates, HashSet<string> own) BuildCandidates()
     {
         var candidates = new List<IPAddress>();
