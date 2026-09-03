@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Net.Sockets;
+using System.Text;
 using KRemote.Models;
 
 namespace KRemote.Net;
@@ -18,9 +19,24 @@ public static class PeerSender
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var frame = Frame.TextMessage(Environment.MachineName, displayName, title, text, pin);
+        var body = Encoding.UTF8.GetBytes(text);
+
+        var frame = Frame.TextMessage(Environment.MachineName, displayName, title, body.LongLength, pin);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(frame), timeout.Token);
 
+        await ExpectAsync(stream, "ready", timeout);
+
+        var sent = 0;
+        while (sent < body.Length)
+        {
+            timeout.CancelAfter(Protocol.StallTimeout);
+
+            var count = Math.Min(Protocol.ChunkSize, body.Length - sent);
+            await stream.WriteAsync(body.AsMemory(sent, count), timeout.Token);
+            sent += count;
+        }
+
+        await stream.FlushAsync(timeout.Token);
         await ExpectAsync(stream, "ok", timeout);
     }
 
@@ -138,7 +154,6 @@ public static class PeerSender
             connectCts.CancelAfter(ConnectTimeout);
             await client.ConnectAsync(address, Protocol.Port, connectCts.Token);
             client.NoDelay = true;
-            client.LingerState = new LingerOption(true, 10);
             return client;
         }
         catch

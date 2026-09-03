@@ -84,62 +84,24 @@ public sealed class PeerServer : IDisposable
             {
                 var remote = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "";
                 client.NoDelay = true;
-                client.LingerState = new LingerOption(true, 10);
                 using var stream = client.GetStream();
 
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
                 timeout.CancelAfter(Protocol.StallTimeout);
 
-                var line = await LineIO.ReadLineAsync(stream, timeout.Token);
-                if (line is null) return;
-
-                var frame = Protocol.Deserialize(line);
-                if (frame is null) return;
-
-                var settings = _settings();
-
-                switch (frame.Type)
+                try
                 {
-                    case "ping":
-                        var pong = Frame.Pong(Environment.MachineName, settings.DisplayName, settings.PinEnabled);
-                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(pong), timeout.Token);
-                        break;
-
-                    case "verifypin":
-                        var verifyReply = IsPinCorrect(frame, settings)
-                            ? Frame.Ok()
-                            : Frame.Refused("Incorrect PIN.");
-                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(verifyReply), timeout.Token);
-                        break;
-
-                    case "text":
-                        if (!IsPinCorrect(frame, settings))
-                        {
-                            await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
-                            break;
-                        }
-
-                        await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
-                        MessageReceived?.Invoke(new InboxMessage
-                        {
-                            Kind = MessageKind.Text,
-                            From = SenderName(frame, remote),
-                            FromAddress = remote,
-                            Title = frame.Title ?? "",
-                            ReceivedAt = DateTime.Now,
-                            Text = frame.Text ?? ""
-                        });
-                        break;
-
-                    case "file":
-                        if (!IsPinCorrect(frame, settings))
-                        {
-                            await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
-                            break;
-                        }
-
-                        await ReceiveFileAsync(stream, frame, remote, timeout);
-                        break;
+                    await DispatchAsync(stream, remote, timeout);
+                }
+                catch (IOException e)
+                {
+                    try
+                    {
+                        await LineIO.WriteLineAsync(
+                            stream, Protocol.Serialize(Frame.Refused(e.Message)), timeout.Token);
+                    }
+                    catch (Exception inner) when (
+                        inner is IOException or SocketException or ObjectDisposedException or OperationCanceledException) { }
                 }
 
                 await DrainCloseAsync(client, stream, timeout.Token);
@@ -148,6 +110,94 @@ public sealed class PeerServer : IDisposable
             catch (OperationCanceledException) { }
             catch (SocketException) { }
         }
+    }
+
+    private async Task DispatchAsync(NetworkStream stream, string remote, CancellationTokenSource timeout)
+    {
+        var line = await LineIO.ReadLineAsync(stream, timeout.Token);
+        if (line is null) return;
+
+        var frame = Protocol.Deserialize(line);
+        if (frame is null) return;
+
+        var settings = _settings();
+
+        switch (frame.Type)
+        {
+            case "ping":
+                var pong = Frame.Pong(Environment.MachineName, settings.DisplayName, settings.PinEnabled);
+                await LineIO.WriteLineAsync(stream, Protocol.Serialize(pong), timeout.Token);
+                break;
+
+            case "verifypin":
+                var verifyReply = IsPinCorrect(frame, settings)
+                    ? Frame.Ok()
+                    : Frame.Refused("Incorrect PIN.");
+                await LineIO.WriteLineAsync(stream, Protocol.Serialize(verifyReply), timeout.Token);
+                break;
+
+            case "text":
+                if (!IsPinCorrect(frame, settings))
+                {
+                    await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
+                    break;
+                }
+
+                var body = await ReadTextBodyAsync(stream, frame, timeout);
+                if (body is null) break;
+
+                await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ok()), timeout.Token);
+                MessageReceived?.Invoke(new InboxMessage
+                {
+                    Kind = MessageKind.Text,
+                    From = SenderName(frame, remote),
+                    FromAddress = remote,
+                    Title = frame.Title ?? "",
+                    ReceivedAt = DateTime.Now,
+                    Text = body
+                });
+                break;
+
+            case "file":
+                if (!IsPinCorrect(frame, settings))
+                {
+                    await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Refused("Incorrect PIN.")), timeout.Token);
+                    break;
+                }
+
+                await ReceiveFileAsync(stream, frame, remote, timeout);
+                break;
+        }
+    }
+
+    private static async Task<string?> ReadTextBodyAsync(
+        NetworkStream stream, Frame header, CancellationTokenSource timeout)
+    {
+        var size = header.Size ?? -1;
+        if (size < 0 || size > Protocol.MaxTextBytes)
+        {
+            await LineIO.WriteLineAsync(
+                stream, Protocol.Serialize(Frame.Refused("Missing or oversized text length.")), timeout.Token);
+            return null;
+        }
+
+        await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ready()), timeout.Token);
+
+        var body = new byte[size];
+        var received = 0;
+
+        while (received < size)
+        {
+            timeout.CancelAfter(Protocol.StallTimeout);
+
+            var read = await stream.ReadAsync(body.AsMemory(received, (int)(size - received)), timeout.Token);
+            if (read == 0)
+                throw new IOException($"Sender disconnected after {received:N0} of {size:N0} bytes.");
+
+            received += read;
+        }
+
+        return Encoding.UTF8.GetString(body);
     }
 
     private static async Task DrainCloseAsync(TcpClient client, NetworkStream stream, CancellationToken ct)

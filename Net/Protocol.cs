@@ -9,6 +9,8 @@ public static class Protocol
 
     public const int ChunkSize = 64 * 1024;
 
+    public const long MaxTextBytes = 64L * 1024 * 1024;
+
     public static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(60);
 
     public static readonly JsonSerializerOptions Json = new()
@@ -52,8 +54,8 @@ public sealed class Frame
     public static Frame Refused(string reason) => new() { Type = "refused", Error = reason };
     public static Frame VerifyPin(string pin) => new() { Type = "verifypin", Pin = pin };
 
-    public static Frame TextMessage(string name, string? displayName, string? title, string text, string? pin = null) =>
-        new() { Type = "text", Name = name, DisplayName = Blank(displayName), Title = Blank(title), Text = text, Pin = pin };
+    public static Frame TextMessage(string name, string? displayName, string? title, long size, string? pin = null) =>
+        new() { Type = "text", Name = name, DisplayName = Blank(displayName), Title = Blank(title), Size = size, Pin = pin };
 
     public static Frame FileHeader(
         string name, string? displayName, string? title, string fileName, long size,
