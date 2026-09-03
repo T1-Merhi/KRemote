@@ -40,6 +40,7 @@ public sealed class Frame
     [JsonPropertyName("displayName")] public string? DisplayName { get; set; }
     [JsonPropertyName("protected")] public bool? Protected { get; set; }
     [JsonPropertyName("pin")] public string? Pin { get; set; }
+    [JsonPropertyName("sha256")] public string? Sha256 { get; set; }
 
     public static Frame Ping() => new() { Type = "ping" };
 
@@ -56,12 +57,14 @@ public sealed class Frame
 
     public static Frame FileHeader(
         string name, string? displayName, string? title, string fileName, long size,
-        string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null, string? pin = null) =>
+        string? text = null, string? groupId = null, int? groupCount = null, int? groupIndex = null, string? pin = null,
+        string? sha256 = null) =>
         new()
         {
             Type = "file", Name = name, DisplayName = Blank(displayName), Title = Blank(title),
             FileName = fileName, Size = size,
-            Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex, Pin = pin
+            Text = Blank(text), GroupId = groupId, GroupCount = groupCount, GroupIndex = groupIndex, Pin = pin,
+            Sha256 = sha256
         };
 
     private static string? Blank(string? value) =>

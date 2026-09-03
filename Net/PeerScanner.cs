@@ -81,7 +81,34 @@ public static class PeerScanner
         return (candidates, own);
     }
 
-    private static async Task<Peer?> ProbeAsync(IPAddress ip, CancellationToken ct)
+    private const int ManualConnectTimeoutMs = 4000;
+    private const int ManualHandshakeTimeoutMs = 4000;
+
+    public static async Task<Peer?> ProbeAddressAsync(string address, CancellationToken ct)
+    {
+        var host = address.Trim();
+        if (host.Length == 0) return null;
+
+        if (IPAddress.TryParse(host, out var parsed))
+            return await ProbeAsync(parsed, ct, ManualConnectTimeoutMs, ManualHandshakeTimeoutMs);
+
+        IPAddress[] resolved;
+        try { resolved = await Dns.GetHostAddressesAsync(host, ct); }
+        catch (SocketException) { return null; }
+        catch (ArgumentException) { return null; }
+
+        foreach (var ip in resolved)
+        {
+            var peer = await ProbeAsync(ip, ct, ManualConnectTimeoutMs, ManualHandshakeTimeoutMs);
+            if (peer is not null) return peer;
+        }
+
+        return null;
+    }
+
+    private static async Task<Peer?> ProbeAsync(
+        IPAddress ip, CancellationToken ct,
+        int connectTimeoutMs = ConnectTimeoutMs, int handshakeTimeoutMs = HandshakeTimeoutMs)
     {
         try
         {
@@ -89,14 +116,14 @@ public static class PeerScanner
 
             using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
-                connectCts.CancelAfter(ConnectTimeoutMs);
+                connectCts.CancelAfter(connectTimeoutMs);
                 await client.ConnectAsync(ip, Protocol.Port, connectCts.Token);
             }
 
             using var stream = client.GetStream();
 
             using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            handshakeCts.CancelAfter(HandshakeTimeoutMs);
+            handshakeCts.CancelAfter(handshakeTimeoutMs);
 
             await LineIO.WriteLineAsync(stream, Protocol.Serialize(Frame.Ping()), handshakeCts.Token);
             var line = await LineIO.ReadLineAsync(stream, handshakeCts.Token);

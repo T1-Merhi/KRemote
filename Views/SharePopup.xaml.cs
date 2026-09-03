@@ -21,7 +21,9 @@ public partial class SharePopup : Window
     private bool _scanning;
     private bool _sending;
     private bool _unlocking;
+    private bool _addingAddress;
     private string? _transferSummary;
+    private int _sentCount;
 
     public string? SuccessMessage { get; private set; }
 
@@ -95,6 +97,80 @@ public partial class SharePopup : Window
             _scanning = false;
             ScanButton.IsEnabled = true;
             ScanProgress.Visibility = Visibility.Collapsed;
+            UpdateTargetLabel();
+            UpdatePinGate();
+        }
+    }
+
+    private void ManualAddressBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ManualAddressPlaceholder.Visibility =
+            string.IsNullOrEmpty(ManualAddressBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ManualAddressBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+
+        e.Handled = true;
+        if (AddAddressButton.IsEnabled) AddAddressButton_Click(this, new RoutedEventArgs());
+    }
+
+    private async void AddAddressButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_addingAddress) return;
+
+        var address = ManualAddressBox.Text.Trim();
+        if (address.Length == 0)
+        {
+            ShowError("Type an IP address or host name first.");
+            return;
+        }
+
+        _addingAddress = true;
+        AddAddressButton.IsEnabled = false;
+        HideError();
+        HideSuccess();
+        ScanStatus.Text = $"Checking {address}…";
+
+        try
+        {
+            var peer = await PeerScanner.ProbeAddressAsync(address, CancellationToken.None);
+
+            if (peer is null)
+            {
+                ScanStatus.Text = "No scan yet.";
+                ShowError($"No KRemote app answered at {address}. Check the address, that KRemote is open there, and that Windows Firewall allows it.");
+                return;
+            }
+
+            var existing = _peers.FirstOrDefault(
+                p => string.Equals(p.Address, peer.Address, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null)
+            {
+                PeerList.SelectedItem = existing;
+                ScanStatus.Text = $"{existing.Label} is already in the list.";
+            }
+            else
+            {
+                _peers.Add(peer);
+                PeerList.SelectedItem = peer;
+                ScanStatus.Text = $"Added {peer.Label}.";
+            }
+
+            ManualAddressBox.Text = "";
+            PeerList.ScrollIntoView(PeerList.SelectedItem);
+        }
+        catch (Exception ex)
+        {
+            ScanStatus.Text = "No scan yet.";
+            ShowError($"Could not reach {address}: {ex.Message}");
+        }
+        finally
+        {
+            _addingAddress = false;
+            AddAddressButton.IsEnabled = true;
             UpdateTargetLabel();
             UpdatePinGate();
         }
@@ -245,8 +321,10 @@ public partial class SharePopup : Window
         }
 
         _sending = true;
+        _transferSummary = null;
         SendButton.IsEnabled = false;
         AttachFilesButton.IsEnabled = false;
+        HideSuccess();
 
         try
         {
@@ -259,12 +337,17 @@ public partial class SharePopup : Window
                 await SendAttachmentsAsync(peer, title, hasText ? text : null, pin);
             }
 
+            _sentCount++;
+
             SuccessMessage = _transferSummary is null
                 ? $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}."
                 : $"Sent to {peer.MachineName} at {DateTime.Now:HH:mm:ss}.\n{_transferSummary}";
 
-            DialogResult = true;
-            Close();
+            ShowSuccess(_transferSummary is null
+                ? $"Sent to {peer.Label} at {DateTime.Now:HH:mm:ss}."
+                : $"Sent to {peer.Label} at {DateTime.Now:HH:mm:ss}  ·  {_transferSummary}");
+
+            ClearComposer();
         }
         catch (Exception ex)
         {
@@ -277,6 +360,14 @@ public partial class SharePopup : Window
             AttachFilesButton.IsEnabled = true;
             TransferPanel.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void ClearComposer()
+    {
+        Editor.Text = "";
+        TitleBox.Text = "";
+        _attachments.Clear();
+        Editor.Focus();
     }
 
     private async Task SendAttachmentsAsync(Peer peer, string? title, string? text, string? pin)
@@ -344,12 +435,13 @@ public partial class SharePopup : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        DialogResult = _sentCount > 0;
         Close();
     }
 
     private void ShowError(string message)
     {
+        HideSuccess();
         ErrorBannerText.Text = message;
         ErrorBanner.Visibility = Visibility.Visible;
     }
@@ -357,5 +449,17 @@ public partial class SharePopup : Window
     private void HideError()
     {
         ErrorBanner.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowSuccess(string message)
+    {
+        HideError();
+        SuccessBannerText.Text = message;
+        SuccessBanner.Visibility = Visibility.Visible;
+    }
+
+    private void HideSuccess()
+    {
+        SuccessBanner.Visibility = Visibility.Collapsed;
     }
 }

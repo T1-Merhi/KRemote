@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Net.Sockets;
 using KRemote.Models;
 
@@ -40,13 +41,16 @@ public static class PeerSender
         var size = file.Length;
         var fileName = Path.GetFileName(filePath);
 
+        var digest = Convert.ToHexString(await SHA256.HashDataAsync(file, ct)).ToLowerInvariant();
+        file.Position = 0;
+
         using var client = await ConnectAsync(address, ct);
         using var stream = client.GetStream();
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Protocol.StallTimeout);
 
-        var header = Frame.FileHeader(Environment.MachineName, displayName, title, fileName, size, text, groupId, groupCount, groupIndex, pin);
+        var header = Frame.FileHeader(Environment.MachineName, displayName, title, fileName, size, text, groupId, groupCount, groupIndex, pin, digest);
         await LineIO.WriteLineAsync(stream, Protocol.Serialize(header), timeout.Token);
 
         await ExpectAsync(stream, "ready", timeout);
@@ -133,6 +137,8 @@ public static class PeerSender
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             connectCts.CancelAfter(ConnectTimeout);
             await client.ConnectAsync(address, Protocol.Port, connectCts.Token);
+            client.NoDelay = true;
+            client.LingerState = new LingerOption(true, 10);
             return client;
         }
         catch

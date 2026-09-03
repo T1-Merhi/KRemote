@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using KRemote.Models;
@@ -81,6 +83,8 @@ public sealed class PeerServer : IDisposable
             try
             {
                 var remote = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "";
+                client.NoDelay = true;
+                client.LingerState = new LingerOption(true, 10);
                 using var stream = client.GetStream();
 
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
@@ -137,11 +141,26 @@ public sealed class PeerServer : IDisposable
                         await ReceiveFileAsync(stream, frame, remote, timeout);
                         break;
                 }
+
+                await DrainCloseAsync(client, stream, timeout.Token);
             }
             catch (IOException) { }
             catch (OperationCanceledException) { }
             catch (SocketException) { }
         }
+    }
+
+    private static async Task DrainCloseAsync(TcpClient client, NetworkStream stream, CancellationToken ct)
+    {
+        try
+        {
+            await stream.FlushAsync(ct);
+            client.Client.Shutdown(SocketShutdown.Send);
+
+            var scratch = new byte[256];
+            while (await stream.ReadAsync(scratch, ct) > 0) { }
+        }
+        catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException or OperationCanceledException) { }
     }
 
     private bool IsPinCorrect(Frame frame, AppSettings settings)
@@ -260,6 +279,8 @@ public sealed class PeerServer : IDisposable
 
         try
         {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
             await using (var file = new FileStream(
                 partPath, FileMode.Create, FileAccess.Write, FileShare.None,
                 Protocol.ChunkSize, useAsync: true))
@@ -277,8 +298,27 @@ public sealed class PeerServer : IDisposable
                         throw new IOException($"Sender disconnected after {received:N0} of {size:N0} bytes.");
 
                     await file.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+                    hash.AppendData(buffer.AsSpan(0, read));
                     received += read;
                     TransferProgress?.Invoke(fileName, received, size);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(header.Sha256))
+            {
+                var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+                var expected = header.Sha256.Trim().ToLowerInvariant();
+
+                if (actual.Length != expected.Length ||
+                    !CryptographicOperations.FixedTimeEquals(
+                        Encoding.UTF8.GetBytes(actual), Encoding.UTF8.GetBytes(expected)))
+                {
+                    TryDelete(partPath);
+                    await LineIO.WriteLineAsync(
+                        stream,
+                        Protocol.Serialize(Frame.Refused($"{fileName} arrived corrupted (checksum mismatch).")),
+                        timeout.Token);
+                    return null;
                 }
             }
 
