@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private PinManager _pinManager = null!;
     private NotificationService _notifications = null!;
 
+    private readonly CollectionViewSource _inboxView = new();
     private readonly CollectionViewSource _savedView = new();
 
     private PeerServer? _server;
@@ -47,7 +48,9 @@ public partial class MainWindow : Window
         _pinManager = new PinManager(_settings);
         _notifications = new NotificationService(() => _settings, this);
 
-        InboxList.ItemsSource = _inbox;
+        _inboxView.Source = _inbox;
+        _inboxView.Filter += (_, e) => e.Accepted = e.Item is InboxMessage { IsSaved: false };
+        InboxList.ItemsSource = _inboxView.View;
 
         _savedView.Source = _inbox;
         _savedView.Filter += (_, e) => e.Accepted = e.Item is InboxMessage { IsSaved: true };
@@ -167,9 +170,15 @@ public partial class MainWindow : Window
         UpdateEmptyStates();
     }
 
+    private void RefreshViews()
+    {
+        _inboxView.View.Refresh();
+        _savedView.View.Refresh();
+    }
+
     private void UpdateEmptyStates()
     {
-        InboxEmptyState.Visibility = _inbox.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        InboxEmptyState.Visibility = _inbox.Any(m => !m.IsSaved) ? Visibility.Collapsed : Visibility.Visible;
         SavedEmptyState.Visibility = _inbox.Any(m => m.IsSaved) ? Visibility.Collapsed : Visibility.Visible;
 
         MessagePlaceholder.Visibility = InboxList.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
@@ -185,7 +194,7 @@ public partial class MainWindow : Window
 
     private void UpdateUnreadBadge()
     {
-        var count = _settings.NotifyUnreadBadge ? _inbox.Count(m => m.IsUnread) : 0;
+        var count = _settings.NotifyUnreadBadge ? _inbox.Count(m => m.IsUnread && !m.IsSaved) : 0;
         UnreadBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
         UnreadBadgeText.Text = count > 99 ? "99+" : count.ToString();
     }
@@ -288,11 +297,13 @@ public partial class MainWindow : Window
         if (InboxList.SelectedItem is not InboxMessage message) return;
 
         message.IsSaved = true;
-        _savedView.View.Refresh();
+        RefreshViews();
+        MessageView.Text = "";
         if (PersistSaved())
         {
             UpdateInboxStatus();
             UpdateSavedStatus();
+            SetStatus("Moved to the Saved tab.");
         }
         UpdateMessageButtons();
         UpdateEmptyStates();
@@ -303,11 +314,13 @@ public partial class MainWindow : Window
         if (SavedList.SelectedItem is not InboxMessage message) return;
 
         message.IsSaved = false;
-        _savedView.View.Refresh();
+        RefreshViews();
+        SavedMessageView.Text = "";
         if (PersistSaved())
         {
             UpdateInboxStatus();
             UpdateSavedStatus();
+            SetStatus("Moved back to the Inbox for this session.");
         }
         UpdateMessageButtons();
         UpdateEmptyStates();
@@ -377,17 +390,17 @@ public partial class MainWindow : Window
 
     private void UpdateInboxStatus()
     {
-        if (_inbox.Count == 0)
+        var unsaved = _inbox.Where(m => !m.IsSaved).ToList();
+
+        if (unsaved.Count == 0)
         {
             InboxStatus.Text = "Nothing received yet.";
             return;
         }
 
-        var saved = _inbox.Count(m => m.IsSaved);
-        var files = _inbox.Count(m => m.IsFile);
-        var parts = new List<string> { $"{_inbox.Count} in this session" };
+        var files = unsaved.Count(m => m.IsFile);
+        var parts = new List<string> { $"{unsaved.Count} in this session" };
         if (files > 0) parts.Add($"{files} file{(files == 1 ? "" : "s")}");
-        parts.Add($"{saved} saved to disk");
         InboxStatus.Text = string.Join("  ·  ", parts);
     }
 
