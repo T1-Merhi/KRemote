@@ -28,8 +28,4 @@
     <Compile Remove="**\obj\**" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="KRemote.Setup.wixproj" />
-  </ItemGroup>
-
 </Project>
