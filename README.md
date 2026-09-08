@@ -1,284 +1,262 @@
 # KRemote
 
-Send text or a file from one PC to another on the same local network.
+**Send text and files from one PC to another on the same local network.**
 
-Open KRemote on both PCs, press **Scan network**, pick the other PC from the list,
-then either type your text and press **Submit**, or press **Send file…** and choose
-one. It lands in that PC's inbox. Every message can carry an optional **title**.
+Open KRemote on both PCs, press **Share**, pick the other PC, then type a
+message, attach files, or both. It lands in that PC's inbox in seconds.
 
-Files stream in 64 KB chunks with no size limit — a 220 MB file moves in half a
-second over a wired LAN, and the app's memory use does not move at all.
+There is no server, no account, no sign-in and no internet involved — the two
+apps talk directly to each other over your own network. Nothing you send leaves
+the building.
 
-There is no server, no account, and no internet involved — the two apps talk
-directly to each other over your LAN.
+**What it is good for**
+
+- Moving a file to the PC on the other side of the room without a USB stick,
+  a cloud upload, or emailing it to yourself.
+- Sending a link, a password, a code snippet or a paragraph of notes to another
+  machine you are sitting at.
+- Any size of file. Transfers stream in the background — a 220 MB file takes
+  about half a second on a wired network.
+
+**What it is not**
+
+It only works between PCs on the same local network, and it has no encryption.
+It is built for a home or office LAN you trust, not for the internet and not for
+public Wi-Fi. See [A note on privacy](#a-note-on-privacy).
 
 ---
 
 ## Requirements
 
-**To install and run it:** Windows 10 or 11, 64-bit. Nothing else — the installer
-carries its own copy of .NET, so a bare Windows machine works.
+- Windows 10 (build 19041 or later) or Windows 11, 64-bit.
+- Both PCs on the **same network and subnet** — e.g. both `192.168.1.x`. If you
+  are unsure, run `ipconfig` on each; the first three numbers must match.
 
-**To build it from source:** the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
-Building the *installer* additionally needs Inno Setup 6:
-
-```powershell
-winget install --id JRSoftware.InnoSetup --source winget
-```
-
-Both PCs must be on the **same network and subnet** (e.g. both `192.168.1.x`).
+Nothing else. The installer carries everything the app needs, so a fresh Windows
+machine works.
 
 ---
 
 ## Install
 
-Two ways in, and you can mix them — installed on one PC, run from source on the
-other. They are the same app and talk to each other either way.
+You need `KRemote-Setup-1.1.0.exe`. If somebody sent it to you, skip to
+**[Installing](#installing)**. If you have the source code instead, build it
+once with the step below.
 
-### Option A — the installer (recommended)
+### Getting the installer file
 
-Run **`dist\KRemote-Setup-1.1.0.exe`** and click through it. It:
-
-- installs to `%LocalAppData%\Programs\KRemote` **without an admin prompt**,
-- puts a **KRemote shortcut on your desktop** and in the Start Menu,
-- offers to add the Windows Firewall rule for port 5555 (this one step asks for
-  admin — see [Firewall](#firewall) below),
-- registers a proper uninstaller in *Apps & features*.
-
-To set up the second PC, copy that single `KRemote-Setup-1.1.0.exe` onto it (USB
-stick, shared folder, whatever) and run it there. It needs nothing preinstalled.
-
-Silent install, if you prefer:
-
-```powershell
-.\dist\KRemote-Setup-1.1.0.exe /VERYSILENT /NORESTART /TASKS="desktopicon,firewallrule"
-```
-
-To uninstall: *Settings → Apps → KRemote → Uninstall*, or run
-`%LocalAppData%\Programs\KRemote\unins000.exe`. Saved inbox messages are left
-behind on purpose; delete `%AppData%\KRemote` if you want them gone too.
-
-### Option B — run from source
-
-```powershell
-cd d:\repos\KRemote
-dotnet run
-```
-
-This needs the .NET 9 SDK and creates no shortcut — it just runs the app.
-
-### Building the installer yourself
+From the repository root, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 ```
 
-It publishes the app self-contained into `publish\`, then compiles
-`installer\KRemote.iss` into `dist\KRemote-Setup-<version>.exe` (about 43 MB).
-Pass `-Version 1.2.0` to stamp a different version, or `-SkipPublish` to reuse
-the existing `publish\` output.
+This takes a minute or two and produces **`dist\KRemote-Setup-1.1.0.exe`** — one
+self-contained file, about 43 MB, that installs on any Windows 10/11 64-bit PC.
 
-### Firewall
+It needs two things installed first:
 
-KRemote listens on **TCP port 5555**, and Windows blocks that by default. The
-installer's *"Allow KRemote through Windows Firewall"* task handles it — it is
-ticked by default and asks for one admin confirmation. **This is what makes a PC
-findable**; without it, the other PC's scan comes back empty.
+1. **The .NET 9 SDK** — <https://dotnet.microsoft.com/download/dotnet/9.0>
+2. **Inno Setup 6**:
 
-If you skipped it, or you are running from source, either accept the Windows
-Firewall prompt on first launch (tick **Private networks**), or add the rule
-directly:
+   ```powershell
+   winget install --id JRSoftware.InnoSetup --source winget
+   ```
 
-```powershell
-powershell -ExecutionPolicy Bypass -File installer\firewall.ps1 -Action Add -ExePath "$env:LOCALAPPDATA\Programs\KRemote\KRemote.exe"
-```
+   Close and reopen your terminal afterwards.
 
-That script elevates itself, and `-Action Remove` takes the rule back out. It logs
-what it did to `%TEMP%\KRemote-firewall.log`. Do this on both PCs.
+If it stops with an error:
 
-**Checking whether the rule exists needs an elevated shell.** From a normal
-PowerShell, `Get-NetFirewallRule` fails with *"Access is denied"* — and with
-`-ErrorAction SilentlyContinue` that looks exactly like the rule being absent.
-Run this **as administrator**:
+| Message | What to do |
+| --- | --- |
+| `Inno Setup 6 not found` | Install it with the command above, then open a **new** terminal and try again. |
+| `dotnet publish failed` | The .NET 9 SDK is missing. Check with `dotnet --version`. |
 
-```powershell
-Get-NetFirewallRule -DisplayName KRemote | Get-NetFirewallPortFilter
-```
+To stamp a different version number on the file, add `-Version 1.2.0`.
+
+### Installing
+
+Run `KRemote-Setup-1.1.0.exe` and click through it. It:
+
+- installs for you only, **without asking for an administrator password**,
+- puts a KRemote shortcut on your desktop and in the Start Menu,
+- offers to **allow KRemote through Windows Firewall** — this one step does ask
+  for admin confirmation, and you should say yes. It is what lets the other PC
+  find you. Without it, scans come back empty.
+
+**Do this on both PCs.** Copy the same `KRemote-Setup-1.1.0.exe` to the second
+machine — USB stick, shared folder, whatever is easiest — and run it there. It
+needs nothing preinstalled.
+
+### Uninstalling
+
+*Settings → Apps → KRemote → Uninstall*.
+
+Your saved messages and settings are deliberately left behind, in case you
+reinstall. To remove those too, delete the folder `%AppData%\KRemote`. Files you
+received are never touched — they stay in your Downloads folder.
 
 ---
 
 ## Using it
 
-The window has three panes.
+The window has three tabs — **Inbox**, **Saved** and **Settings** — and a
+**Share** button in the bottom-right corner that opens the send window.
 
-### 1. Devices (left)
+The first time you start KRemote it asks whether you want to set a PIN. You can
+skip this and turn one on later. See [PIN](#pin).
 
-Press **Scan network**. KRemote probes every address in your subnet
-(`192.168.1.1` → `192.168.1.254`, for whatever your subnet actually is) and lists
-the PCs that answer, by Windows machine name. A sweep takes about one second.
+### Sending something
 
-The list is a snapshot, not a live feed — press **Scan network** again after
-starting the app on the other PC.
+Press **Share** (or **Ctrl+N**).
 
-Your own PC never appears in its own list.
+1. **Find the other PC.** Press **Scan**. It takes about a second and lists every
+   PC on your network running KRemote.
 
-### 2. Send (top right)
+   If the one you want does not appear, type its IP address or its computer name
+   into the box and press **Add**.
 
-Click a device in the list, then send one of two things:
+2. **Click it** in the list. If it shows a lock, type that PC's PIN and press
+   **Unlock** first.
 
-- **Text** — type or paste into the editor and press **Submit** (or **Ctrl+Enter**).
-- **A file** — press **Send file…**, pick one file, and it starts immediately. A
-  progress bar shows percent, bytes and, when it finishes, the transfer rate.
+3. **Write your message.** Any combination of:
+   - a **Title** (optional) — becomes the bold heading in the other person's inbox,
+   - **text** — type or paste anything,
+   - **files** — press *Attach files* and pick one or several.
 
-**Title** is optional and applies to both. Whatever you type there becomes the bold
-line for that message in the receiver's inbox; leave it empty and the inbox falls
-back to the first line of the text, or the file's name.
+4. **Press Send** (or **Ctrl+Enter**). A bar shows the progress, and the speed
+   while it transfers.
 
-The status line tells you what happened: `Sent to DESKTOP-B at 14:22:07`, or the
-reason it failed. The editor and title clear themselves only after a successful
-send, so nothing is lost if the other PC is unreachable.
+Your message and attachments are cleared only after the send succeeds, so nothing
+is lost if the other PC turns out to be unreachable.
 
-One send goes to one selected device, one file at a time.
+> **The device list is a snapshot, not a live view.** It shows who answered the
+> last time you pressed Scan. If you open KRemote on the other PC afterwards,
+> press Scan again. Your own PC never appears in its own list.
 
-### 3. Inbox (bottom right)
+### Sending several files at once
 
-Whatever arrives is appended to the inbox, newest first. Arrival is **silent** — no
-popup, no window stealing focus, no sound. The only exception is that an incoming
-file shows live progress on the inbox line, because a large transfer would
-otherwise look like nothing happening.
+You can attach as many files as you like. How they travel is up to you, under
+*Settings → Sending*:
 
-Click an item to see it on the right: the full text, or the file's name, size,
-sender and path.
+- **Zip them into one archive** (the default) — everything is bundled into a
+  single compressed file. The other person receives one `.zip`.
+- **Send as separate files, grouped into one message** — the files arrive
+  individually but appear as a single entry in the inbox, listing all of them.
+
+Zip is usually the better choice: it is one transfer, and it is smaller.
+
+### Receiving
+
+Anything sent to you appears in your **Inbox**, newest first, marked unread until
+you click it. If it is a large file you will see it arriving.
+
+Depending on your settings, you also get a Windows notification, a sound, a
+flashing taskbar icon, and a count on the Inbox tab.
+
+Click any item to read it — the full text, or the file's name, size, who sent it
+and where it was saved.
 
 | Button | What it does |
 | --- | --- |
-| **Open** | Opens the received file in whatever it is associated with. Files only. |
-| **Show in folder** | Opens Explorer with the file selected. Files only. |
-| **Copy** | Copies the message text — or, for a file, its full path. |
-| **Save** | Keeps this row so it comes back next time you open KRemote. |
-| **Delete** | Removes the row from the inbox. |
+| **Open** | Opens the received file in whatever program it belongs to. |
+| **Show in folder** | Opens File Explorer with the file highlighted. |
+| **Copy** | Copies the message text — or, for a file, its location. |
+| **Save** | Moves the message to the **Saved** tab, so it is still there next time you open KRemote. |
+| **Delete** | Removes it from the list (the **Del** key works too). |
 
-**The inbox is memory-only by default.** Any row you have not pressed **Save** on is
-gone when you close the app. Saved rows reload on the next launch and are marked
-`saved`.
+### Keeping messages
 
-```
-%AppData%\KRemote\saved-messages.json     saved inbox rows
-%UserProfile%\Downloads\KRemote\          received files
-```
+**Your inbox is cleared when you close KRemote.** Anything you want to keep needs
+the **Save** button.
 
-**Deleting a file's row never deletes the file.** The bytes are already on disk in
-`Downloads\KRemote`; the row is just the inbox entry. Use **Show in folder** if you
-want to remove the file itself.
+The two tabs never show the same message. **Inbox** is what has arrived since you
+opened the app; **Saved** is what you have chosen to keep. Pressing *Save* moves a
+message from the first to the second, and *Remove from Saved* moves it back for
+the rest of the session. So when you open KRemote, the Inbox starts empty and
+everything you kept is waiting under Saved.
 
-Received files never overwrite anything. A second `report.pdf` is saved as
-`report (2).pdf`.
+**Deleting a message never deletes the file.** A received file is already on your
+disk; the inbox entry is just a record of it. To delete the file itself, use
+*Show in folder* and delete it there.
 
----
+Received files never overwrite anything you already have. A second `report.pdf`
+is saved as `report (2).pdf`.
 
-## How it works
+### Where your files go
 
-Both halves live in the same app — every instance listens and can send.
-
-- **Port**: TCP 5555, on every instance.
-- **Discovery**: an active subnet scan. Pressing *Scan network* opens a short TCP
-  connection to port 5555 on all 254 host addresses of each local IPv4 `/24`, at up
-  to 128 probes in parallel, and sends a `ping`. Anything that replies `pong` with
-  its machine name is a running KRemote. There are no background broadcasts or
-  announcements — nothing is sent until you press the button.
-- **Messages**: a newline-delimited UTF-8 JSON header over TCP, one exchange per
-  connection. The receiver replies `ok`, which is what turns into the "Sent"
-  confirmation on the sender's side.
+Received files are saved to:
 
 ```
-scan   →  {"type":"ping"}
-       ←  {"type":"pong","name":"DESKTOP-B"}
-
-text   →  {"type":"text","name":"DESKTOP-A","title":"Notes","text":"hello"}
-       ←  {"type":"ok"}
-
-file   →  {"type":"file","name":"DESKTOP-A","fileName":"a.pdf","size":41234}
-       ←  {"type":"ready"}
-       →  <exactly `size` raw bytes>
-       ←  {"type":"ok"}
+C:\Users\<you>\Downloads\KRemote
 ```
 
-Text rides inside the JSON, which escapes newlines and keeps the framing intact, so
-line breaks, tabs, quotes, accents and emoji all survive. **File bytes do not** —
-they follow the header as a raw stream of known length, read and written 64 KB at a
-time, so a multi-gigabyte file never exists in memory on either side.
+You can change that under *Settings → Downloads folder*.
 
-Three details make that safe rather than merely fast:
+### Settings
 
-- The receiver answers `ready` **before** the first byte moves, so it can refuse a
-  transfer (unwritable folder, nonsense size) without the sender having pushed the
-  whole file first.
-- Bytes land in a `.part` file that is renamed only on success. An interrupted
-  transfer leaves nothing behind, rather than a truncated file that looks real.
-- The stall timeout (60 s) is refreshed per chunk. It limits *silence*, not the
-  duration of the transfer, so a slow link is never killed for being slow.
-
-### Security
-
-There is **no passcode and no encryption**. Any KRemote instance that can reach port
-5555 on your PC can put text in your inbox **and write a file into
-`Downloads\KRemote`**, and everything crosses the network in plain form. That is a
-deliberate trade for zero setup — use it on a network you trust (your home or office
-LAN), not on public Wi-Fi.
-
-Incoming file names are never trusted. Every directory component is stripped before
-the name is used, so `..\..\Windows\System32\evil.dll` is written as `evil.dll`
-inside the downloads folder and cannot escape it. Invalid characters are replaced,
-Windows reserved names (`CON`, `NUL`, `COM1`…) are prefixed, and nothing is ever
-executed — files are only written to disk.
-
----
-
-## Troubleshooting
-
-| Symptom | Cause and fix |
+| Setting | What it does |
 | --- | --- |
-| Scan finds nothing | KRemote is not open on the other PC, or the firewall rule is missing there. See [Firewall](#firewall). |
-| Scan finds nothing, firewall is fine | The two PCs are on different subnets (e.g. one on Wi-Fi `192.168.1.x`, one on Ethernet `192.168.0.x`). Check with `ipconfig` on both — the first three numbers must match. |
-| `Port 5555 is already in use…` in the bottom-left | A second copy of KRemote is already running on this PC. Close it. Until you do, this window can send but not receive. |
-| `Could not send…: No connection could be made` | The other app was closed after your last scan. Scan again. |
-| Guest/public Wi-Fi does not work | Many public and guest networks isolate clients from each other, which blocks all direct PC-to-PC traffic. Nothing in the app can work around that. |
-| Message arrived but I did not notice | By design — arrival is silent. Check the inbox pane. |
-| Where did the file go? | `%UserProfile%\Downloads\KRemote`. Select the row and press **Show in folder**. |
-| I deleted the row but the file is still there | Correct — Delete removes the inbox entry, never the downloaded file. Delete the file from Explorer. |
-| A transfer died partway | Nothing is left behind; the partial `.part` file is discarded. Send it again. |
-| File arrived with `(2)` in the name | A file of that name already existed. KRemote never overwrites. |
-| Installer says the app is already installed | Run the uninstaller first, or just install over the top — the version is upgraded in place. |
-| `Get-NetFirewallRule` says the rule is missing | You are querying from a non-elevated shell, where the call fails with "Access is denied" rather than reporting the truth. Re-run it as administrator. |
+| **Display name** | A friendlier name other PCs see instead of your Windows computer name. Optional. |
+| **Downloads folder** | Where received files are saved. |
+| **Multiple files** | Zip several files into one archive, or send them separately as a group. |
+| **Group timeout** | How long to wait for the rest of a group before giving up on it. |
+| **Notifications** | Windows notification, sound, taskbar flash, and the unread count — each can be switched off on its own. |
+| **PIN** | See below. |
+
+Changes take effect immediately; there is no Save button.
+
+### PIN
+
+Switching on a PIN means anyone sending to your PC has to enter your 4-digit code
+first. They are asked once, and again after they rescan.
+
+**Think of this as a way to avoid mistakes, not as protection.** It reliably stops
+a colleague sending a file to the wrong machine. It is not real security: the
+code is short, it is stored and sent as plain text, and nothing limits how many
+times someone can guess. Do not rely on it to keep anyone out.
 
 ---
 
-## Project layout
+## A note on privacy
 
-```
-KRemote.sln
-KRemote.csproj          WPF app, net9.0-windows
-KRemote.ico             App and shortcut icon
-App.xaml                Application resources and control styles
-MainWindow.xaml(.cs)    The three panes and all UI behavior
-Models/
-  Peer.cs               A discovered PC: machine name + address
-  InboxMessage.cs       A received text or file, with its saved/unsaved state
-Net/
-  Protocol.cs           Port, frame shapes, chunk size, timeouts
-  LineIO.cs             Unbuffered header reads, so file bytes are never swallowed
-  PeerServer.cs         Listener: answers probes, receives text and streams files in
-  PeerScanner.cs        Subnet sweep
-  PeerSender.cs         Sends one message or one file to one peer
-Storage/
-  MessageStore.cs       Reads and writes saved-messages.json
-installer/
-  build-installer.ps1   Publish + compile in one command
-  KRemote.iss           Inno Setup script
-  firewall.ps1          Self-elevating firewall rule add/remove
-publish/                Self-contained build output (generated, ignored by git)
-dist/                   KRemote-Setup-<version>.exe (generated, ignored by git)
-```
+KRemote sends everything in plain form across your network, with no encryption.
+Anyone on the same network who is looking can read it, and any PC that can reach
+yours can put a message in your inbox and a file in your downloads folder.
+
+That is a deliberate trade — it is why the app needs no accounts, no setup and no
+internet. **Use it on a network you trust: your home or your office.** Do not use
+it on café, hotel, airport or other public Wi-Fi.
+
+Two things KRemote does protect you from:
+
+- **A received file cannot escape your downloads folder**, whatever it claims to
+  be called.
+- **Nothing you receive is ever run automatically.** Files are only written to
+  disk.
+
+But **Open** launches a file exactly as double-clicking it would. Treat a file
+that arrives in KRemote the same way you would treat one arriving by email.
+
+---
+
+## If something goes wrong
+
+| Problem | What is happening |
+| --- | --- |
+| **Scan finds nothing** | KRemote is not open on the other PC, or it was not allowed through Windows Firewall there. Reinstall on that PC and accept the firewall step, and make sure the app is running. |
+| **Scan still finds nothing, firewall is fine** | The two PCs are probably on different networks — one on Wi-Fi, one on Ethernet, for example. Run `ipconfig` on both: the first three numbers of the IP address must match. You can also try adding the address by hand in the Share window. |
+| **A PC that was there has disappeared** | The list is only as fresh as your last scan. Press Scan again. |
+| **"Could not send… No connection could be made"** | The other PC closed KRemote after your last scan. Press Scan again. |
+| **"Could not send… Incorrect PIN"** | That PC's PIN changed, or your unlock expired when you rescanned. Select it again and re-enter the PIN. |
+| **I am sending fine but never receive anything** | Another copy of KRemote may already be running on your PC and holding the connection. Close the extra copy. |
+| **It does not work on guest or public Wi-Fi** | Most public networks deliberately stop devices talking to each other. Nothing in the app can get around it. |
+| **Where did my file go?** | `Downloads\KRemote`, unless you changed the folder. Select the message and press *Show in folder*. |
+| **I deleted the message but the file is still there** | That is intended — deleting a message never deletes the file. Remove it from File Explorer. |
+| **A transfer stopped partway** | Nothing is left behind, and no half-finished file is saved. Just send it again. |
+| **The file arrived named "(2)"** | You already had a file with that name. KRemote never overwrites. |
+| **Only some of the files arrived** | The rest did not make it in time. Increase the group timeout in *Settings → Sending*, or switch to zip mode, which sends everything in one go. |
+| **The installer says KRemote is already installed** | Install over the top — it upgrades in place. |
 
 ---
 
